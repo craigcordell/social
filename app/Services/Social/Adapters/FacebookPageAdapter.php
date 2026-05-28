@@ -36,7 +36,7 @@ class FacebookPageAdapter implements SocialPlatformAdapter
 
     protected function graph(ConnectedAccount $account): PendingRequest
     {
-        return Http::acceptJson()->asJson()->withToken($account->access_token);
+        return Http::acceptJson()->asForm()->withToken($account->access_token);
     }
 
     protected function endpoint(string $path): string
