@@ -20,6 +20,18 @@ Last updated: May 28, 2026
 
 Facebook Page connected successfully after adding `business_management`.
 
+Post/redelete smoke tests after narrowing OAuth and Page discovery:
+
+- `social_posts.id = 5`
+  - Published through the API with a public Picsum image.
+  - Facebook post id: `358179240887925_1400464472105392`
+  - Final local status: `deleted`
+
+- `social_posts.id = 6`
+  - Published through the API with a real Clayton House shop image from `https://clayton.house/shop`.
+  - Facebook post id: `358179240887925_1400465345438638`
+  - Final local status: `deleted`
+
 Two sample posts were created during testing:
 
 - `social_posts.id = 1`
