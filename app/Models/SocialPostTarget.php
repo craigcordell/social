@@ -26,6 +26,8 @@ class SocialPostTarget extends Model
 
     public const DELETE_STATUS_FAILED = 'failed';
 
+    public const DELETE_STATUS_MANUAL_REQUIRED = 'manual_delete_required';
+
     protected $fillable = [
         'social_post_id',
         'connected_account_id',

@@ -59,7 +59,10 @@ Instagram publish smoke test:
   - Published through the API with a real Clayton House shop image from `https://clayton.house/shop`.
   - Instagram media id: `18082816811438704`
   - Instagram container id: `18473686879099933`
-  - Final local status: `published`
+  - Final local status after delete test: `published`
+  - Delete attempt through `DELETE /api/posts/7` queued correctly, but Meta rejected `DELETE /18082816811438704` with `Unsupported delete request`.
+  - The app now treats Instagram deletes as terminal `manual_delete_required`, not retryable failures.
+  - Local target `social_post_targets.id = 6` has `delete_status = manual_delete_required` and `delete_attempts = 1`.
 
 ## Important Finding
 

@@ -27,8 +27,9 @@ Started for Instagram professional accounts:
 - Connect Instagram accounts with the Instagram Login OAuth flow.
 - Store Instagram access tokens encrypted in `connected_accounts`.
 - Publish queued single-image feed posts through a media container and publish step.
+- Mark deletes as `manual_delete_required` because Meta's Instagram media API does not currently support deleting published feed media.
 
-Instagram delete is not implemented yet because the current round-one permission set only covers account basics and feed-image publishing. Google Business Profile support is still schema-only.
+Google Business Profile support is still schema-only.
 
 See `PERMISSIONS.md` for the current Meta permission minimization plan. Round one should aim for Page publishing/deleting and organic Page status only.
 

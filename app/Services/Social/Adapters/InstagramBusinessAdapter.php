@@ -43,7 +43,11 @@ class InstagramBusinessAdapter implements SocialPlatformAdapter
 
     public function delete(ConnectedAccount $account, SocialPostTarget $target): array
     {
-        throw new RuntimeException('Instagram delete is not implemented because the round-one permission set only supports feed-image publishing.');
+        return [
+            'manual_delete_required' => true,
+            'message' => 'Instagram does not support deleting published feed media through the current Instagram API. Delete this post manually in Instagram.',
+            'provider_post_id' => $target->provider_post_id,
+        ];
     }
 
     protected function caption(SocialPost $post): string

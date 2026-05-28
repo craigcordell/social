@@ -92,3 +92,36 @@ it('waits for instagram media containers before publishing', function (): void {
 
     Http::assertSentCount(4);
 });
+
+it('marks instagram media deletes as manual delete required', function (): void {
+    $owner = Owner::query()->create(['name' => 'Internal', 'type' => 'internal']);
+    $account = ConnectedAccount::query()->create([
+        'owner_id' => $owner->id,
+        'provider' => 'instagram',
+        'provider_account_id' => 'ig-user-1',
+        'provider_account_type' => 'instagram_business',
+        'display_name' => 'Clayton House Instagram',
+        'access_token' => 'ig-token',
+        'status' => ConnectedAccount::STATUS_ACTIVE,
+    ]);
+    $post = SocialPost::query()->create([
+        'owner_id' => $owner->id,
+        'caption' => 'New item',
+        'image_url' => 'https://example.com/item.jpg',
+        'status' => SocialPost::STATUS_PUBLISHED,
+    ]);
+    $target = $post->targets()->create([
+        'connected_account_id' => $account->id,
+        'provider' => 'instagram',
+        'publish_status' => 'published',
+        'provider_post_id' => 'ig-media-1',
+    ]);
+
+    $result = app(InstagramBusinessAdapter::class)->delete($account, $target);
+
+    expect($result['manual_delete_required'])->toBeTrue()
+        ->and($result['provider_post_id'])->toBe('ig-media-1')
+        ->and($result['message'])->toContain('Delete this post manually');
+
+    Http::assertNothingSent();
+});

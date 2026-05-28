@@ -18,6 +18,7 @@ Goal: request the smallest Meta permission set that supports the product. The ap
   - Set up if it can use the same Meta/Facebook connection screens.
   - Target the most broadly compatible path for vendor Business/Creator accounts.
   - Round one is feed-image publishing only.
+  - Published feed media deletion is manual unless Meta adds a supported delete endpoint.
 - Deferred:
   - Catalog API is phase 2 or 3.
   - Boosting/ads are phase 2.
@@ -71,6 +72,8 @@ Current Meta dashboard setting for the Instagram API use case:
 - `instagram_business_content_publish`: ready for testing.
 
 These match the narrow Instagram Login path for identifying a professional account and publishing organic feed media.
+
+Meta's Instagram media docs still list deleting published media as unsupported. The app records Instagram delete requests as `manual_delete_required` instead of retrying them as provider failures.
 
 Do not add these in round one:
 

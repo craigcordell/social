@@ -74,6 +74,18 @@ class DeleteSocialPostTarget implements ShouldQueue
             $response = $platforms->adapter($target->provider)
                 ->delete($target->connectedAccount, $target);
 
+            if ($response['manual_delete_required'] ?? false) {
+                $target->forceFill([
+                    'delete_status' => SocialPostTarget::DELETE_STATUS_MANUAL_REQUIRED,
+                    'provider_response' => array_merge($target->provider_response ?? [], ['delete' => $response]),
+                    'last_error' => $response['message'] ?? null,
+                ])->save();
+
+                $target->socialPost->refreshAggregateStatus();
+
+                return;
+            }
+
             $target->forceFill([
                 'delete_status' => SocialPostTarget::DELETE_STATUS_DELETED,
                 'provider_response' => array_merge($target->provider_response ?? [], ['delete' => $response]),

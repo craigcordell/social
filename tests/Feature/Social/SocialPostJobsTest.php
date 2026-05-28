@@ -125,3 +125,37 @@ it('marks a published target deleted when the adapter succeeds', function (): vo
     expect($target->fresh()->delete_status)->toBe(SocialPostTarget::DELETE_STATUS_DELETED)
         ->and($target->socialPost->fresh()->status)->toBe(SocialPost::STATUS_DELETED);
 });
+
+it('marks a published target as manual delete required without failing the job', function (): void {
+    bindSocialAdapter(new class implements SocialPlatformAdapter
+    {
+        public function publish(ConnectedAccount $account, SocialPost $post): array
+        {
+            return [];
+        }
+
+        public function delete(ConnectedAccount $account, SocialPostTarget $target): array
+        {
+            return [
+                'manual_delete_required' => true,
+                'message' => 'Delete this post manually.',
+                'provider_post_id' => $target->provider_post_id,
+            ];
+        }
+    });
+
+    $target = socialTarget();
+    $target->forceFill([
+        'publish_status' => SocialPostTarget::PUBLISH_STATUS_PUBLISHED,
+        'provider_post_id' => 'ig-media-1',
+        'delete_status' => SocialPostTarget::DELETE_STATUS_QUEUED,
+    ])->save();
+
+    (new DeleteSocialPostTarget($target->id))->handle(app(SocialPlatformManager::class));
+
+    expect($target->fresh()->delete_status)->toBe(SocialPostTarget::DELETE_STATUS_MANUAL_REQUIRED)
+        ->and($target->fresh()->delete_attempts)->toBe(1)
+        ->and($target->fresh()->last_error)->toContain('Delete this post manually')
+        ->and($target->fresh()->provider_response['delete']['manual_delete_required'])->toBeTrue()
+        ->and($target->socialPost->fresh()->status)->toBe(SocialPost::STATUS_PUBLISHED);
+});
