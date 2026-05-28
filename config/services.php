@@ -43,4 +43,11 @@ return [
         'login_config_id' => env('FACEBOOK_LOGIN_CONFIG_ID'),
     ],
 
+    'instagram' => [
+        'client_id' => env('INSTAGRAM_CLIENT_ID', env('FACEBOOK_CLIENT_ID')),
+        'client_secret' => env('INSTAGRAM_CLIENT_SECRET', env('FACEBOOK_CLIENT_SECRET')),
+        'redirect' => env('INSTAGRAM_REDIRECT_URI'),
+        'scopes' => array_filter(array_map('trim', explode(',', env('INSTAGRAM_SCOPES', 'instagram_business_basic,instagram_business_content_publish')))),
+    ],
+
 ];

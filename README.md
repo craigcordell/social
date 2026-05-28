@@ -22,7 +22,13 @@ Implemented for Facebook Pages:
 - Delete posts created or recovered through this app.
 - Track aggregate post status and per-target publish/delete status.
 
-Schema is already shaped for later Instagram Business and Google Business Profile support, but those adapters are not implemented yet.
+Started for Instagram professional accounts:
+
+- Connect Instagram accounts with the Instagram Login OAuth flow.
+- Store Instagram access tokens encrypted in `connected_accounts`.
+- Publish queued single-image feed posts through a media container and publish step.
+
+Instagram delete is not implemented yet because the current round-one permission set only covers account basics and feed-image publishing. Google Business Profile support is still schema-only.
 
 See `PERMISSIONS.md` for the current Meta permission minimization plan. Round one should aim for Page publishing/deleting and organic Page status only.
 
@@ -50,14 +56,13 @@ That starts Laravel, Vite, logs, and a database queue listener for:
 If running pieces manually:
 
 ```bash
-php artisan serve --host=localhost --port=8000
 php artisan queue:listen --queue=social-publish,social-delete,default --tries=1 --timeout=0
 ```
 
 ## Required Environment
 
 ```dotenv
-APP_URL=http://localhost:8000
+APP_URL=https://social.test
 QUEUE_CONNECTION=database
 
 FACEBOOK_CLIENT_ID=
@@ -66,9 +71,17 @@ FACEBOOK_REDIRECT_URI=http://localhost:8000/oauth/facebook/callback
 FACEBOOK_SCOPES=pages_show_list,pages_read_engagement,pages_manage_posts
 FACEBOOK_GRAPH_VERSION=v25.0
 FACEBOOK_LOGIN_CONFIG_ID=
+
+INSTAGRAM_CLIENT_ID="${FACEBOOK_CLIENT_ID}"
+INSTAGRAM_CLIENT_SECRET="${FACEBOOK_CLIENT_SECRET}"
+INSTAGRAM_REDIRECT_URI=https://social.test/oauth/instagram/callback
+INSTAGRAM_SCOPES=instagram_business_basic,instagram_business_content_publish
+INSTAGRAM_GRAPH_VERSION=v25.0
 ```
 
 For local Facebook OAuth, add `http://localhost:8000/oauth/facebook/callback` to the app's valid redirect URIs. The first working local flow used `business_management` to discover the CHM Page through the Business `owned_pages` edge, but the next permissions pass should try to remove that scope.
+
+For local Instagram OAuth, use Herd's secured local domain. Run `herd secure social` if needed, then add `https://social.test/oauth/instagram/callback` to the Instagram API with Instagram Login redirect URI settings. Start the connection flow from `https://social.test/connected-accounts` so Laravel's OAuth state session stays on the same host.
 
 ## Admin UI
 

@@ -17,7 +17,6 @@ class ConnectedAccountsController extends Controller
             'accounts' => ConnectedAccount::query()->with('owner')->latest()->get(),
             'oauthDebugAttempts' => OAuthDebugAttempt::query()
                 ->with('owner')
-                ->where('provider', 'facebook')
                 ->latest()
                 ->limit(5)
                 ->get(),
@@ -28,6 +27,13 @@ class ConnectedAccountsController extends Controller
                 'graph_version' => config('social.providers.facebook.graph_version'),
                 'scopes' => config('services.facebook.scopes', []),
                 'login_config_id' => config('services.facebook.login_config_id'),
+            ],
+            'instagramConfig' => [
+                'client_id' => config('services.instagram.client_id'),
+                'has_client_secret' => filled(config('services.instagram.client_secret')),
+                'redirect_uri' => config('services.instagram.redirect') ?: url('/oauth/instagram/callback'),
+                'graph_version' => config('social.providers.instagram.graph_version'),
+                'scopes' => config('services.instagram.scopes', []),
             ],
         ]);
     }

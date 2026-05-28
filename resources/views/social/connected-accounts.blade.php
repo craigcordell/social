@@ -2,7 +2,7 @@
     <div class="flex h-full w-full flex-1 flex-col gap-6">
         <div>
             <flux:heading size="xl">Connections</flux:heading>
-            <flux:text>Connect Facebook Pages with OAuth and store Page tokens for queued publishing.</flux:text>
+            <flux:text>Connect Facebook Pages and Instagram professional accounts for queued publishing.</flux:text>
         </div>
 
         @if (session('warning'))
@@ -66,6 +66,32 @@
             </dl>
         </div>
 
+        <div class="rounded-lg border border-zinc-200 p-4 text-sm dark:border-zinc-700">
+            <div class="mb-3 font-medium">Instagram app settings</div>
+            <dl class="grid gap-3 md:grid-cols-2">
+                <div>
+                    <dt class="text-zinc-500">App ID</dt>
+                    <dd>{{ $instagramConfig['client_id'] ?: 'Not configured' }}</dd>
+                </div>
+                <div>
+                    <dt class="text-zinc-500">App secret</dt>
+                    <dd>{{ $instagramConfig['has_client_secret'] ? 'Configured' : 'Not configured' }}</dd>
+                </div>
+                <div>
+                    <dt class="text-zinc-500">OAuth redirect URI</dt>
+                    <dd><code>{{ $instagramConfig['redirect_uri'] }}</code></dd>
+                </div>
+                <div>
+                    <dt class="text-zinc-500">Graph version</dt>
+                    <dd>{{ $instagramConfig['graph_version'] }}</dd>
+                </div>
+                <div class="md:col-span-2">
+                    <dt class="text-zinc-500">Requested scopes</dt>
+                    <dd><code>{{ implode(', ', $instagramConfig['scopes']) }}</code></dd>
+                </div>
+            </dl>
+        </div>
+
         <form method="GET" action="{{ route('oauth.facebook.redirect') }}" class="flex flex-wrap items-end gap-4 rounded-lg border border-zinc-200 p-4 dark:border-zinc-700">
             <flux:select name="owner_id" label="Owner" required>
                 @foreach ($owners as $owner)
@@ -73,6 +99,15 @@
                 @endforeach
             </flux:select>
             <flux:button type="submit" variant="primary" icon="link">Connect Facebook</flux:button>
+        </form>
+
+        <form method="GET" action="{{ route('oauth.instagram.redirect') }}" class="flex flex-wrap items-end gap-4 rounded-lg border border-zinc-200 p-4 dark:border-zinc-700">
+            <flux:select name="owner_id" label="Owner" required>
+                @foreach ($owners as $owner)
+                    <flux:select.option value="{{ $owner->id }}">{{ $owner->name }}</flux:select.option>
+                @endforeach
+            </flux:select>
+            <flux:button type="submit" variant="primary" icon="link">Connect Instagram</flux:button>
         </form>
 
         <div class="overflow-hidden rounded-lg border border-zinc-200 dark:border-zinc-700">

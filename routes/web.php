@@ -4,6 +4,7 @@ use App\Http\Controllers\ApiTokensController;
 use App\Http\Controllers\ConnectedAccountsController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\OAuth\FacebookOAuthController;
+use App\Http\Controllers\OAuth\InstagramOAuthController;
 use App\Http\Controllers\OwnersController;
 use Illuminate\Support\Facades\Route;
 
@@ -21,6 +22,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('posts', [DashboardController::class, 'posts'])->name('posts.index');
     Route::get('oauth/facebook/redirect', [FacebookOAuthController::class, 'redirect'])->name('oauth.facebook.redirect');
     Route::get('oauth/facebook/callback', [FacebookOAuthController::class, 'callback'])->name('oauth.facebook.callback');
+    Route::get('oauth/instagram/redirect', [InstagramOAuthController::class, 'redirect'])->name('oauth.instagram.redirect');
 });
+
+Route::get('oauth/instagram/callback', [InstagramOAuthController::class, 'callback'])->name('oauth.instagram.callback');
 
 require __DIR__.'/settings.php';

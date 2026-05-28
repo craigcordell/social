@@ -15,6 +15,13 @@ Last updated: May 28, 2026
 - API deletes queue through `social-delete` and delete Facebook posts by stored `provider_post_id`.
 - OAuth debug callback records are saved and shown on the connections page.
 - Admin UI exists for dashboard, owners, connections, API tokens, and posts.
+- Instagram OAuth redirect/callback routes are implemented for Instagram Login.
+- Instagram connected accounts can be saved with encrypted access tokens.
+- Instagram feed-image publishing adapter is implemented for the two-step media container and media publish flow.
+- Instagram publish now waits for the media container `status_code` to be `FINISHED` before calling `media_publish`.
+- Instagram app credentials are configured locally and Meta accepted the HTTPS callback `https://social.test/oauth/instagram/callback`.
+- Herd is serving `https://social.test` with PHP 8.4 for this project.
+- Instagram account `claytonhousemarketplace` connected successfully as `connected_accounts.id = 3`.
 
 ## Verified Manually
 
@@ -45,6 +52,14 @@ Two sample posts were created during testing:
   - Final local status: `deleted`
 
 Both were confirmed visible on Facebook before deletion. Both were deleted through the API delete path and queue worker.
+
+Instagram publish smoke test:
+
+- `social_posts.id = 7`
+  - Published through the API with a real Clayton House shop image from `https://clayton.house/shop`.
+  - Instagram media id: `18082816811438704`
+  - Instagram container id: `18473686879099933`
+  - Final local status: `published`
 
 ## Important Finding
 
@@ -102,6 +117,8 @@ The callback now discovers Facebook Pages only through `/me/accounts`. It no lon
 - Paid stats come with the ads phase; organic status/engagement is round one.
 - Meta dashboard currently has `instagram_business_basic` and `instagram_business_content_publish` ready for testing for the Instagram API use case.
 - Instagram comments, messages, insights, shopping, and legacy Page-linked Instagram publishing permissions are intentionally not enabled for round one.
+- Instagram delete is not implemented with the current permission set.
+- Instagram local connection testing should start from `https://social.test/connected-accounts`, not `localhost:8000`, so the OAuth state cookie and callback host match.
 
 Target Facebook scopes to test next:
 
@@ -166,15 +183,38 @@ Last targeted result:
 8 tests passed, 26 assertions
 ```
 
+After starting Instagram:
+
+```bash
+php artisan test --compact tests/Feature/Social/InstagramBusinessAdapterTest.php tests/Feature/Social/InstagramOAuthControllerTest.php tests/Feature/Social/FacebookOAuthControllerTest.php tests/Feature/Social/FacebookPageAdapterTest.php tests/Feature/Social/SocialPostJobsTest.php tests/Feature/Api/SocialPublishingApiTest.php
+```
+
+Last targeted result:
+
+```text
+14 tests passed, 66 assertions
+```
+
+After Instagram publish polling fix:
+
+```bash
+php artisan test --compact tests/Feature/Social/InstagramBusinessAdapterTest.php tests/Feature/Social/InstagramOAuthControllerTest.php
+```
+
+Last targeted result:
+
+```text
+6 tests passed, 36 assertions
+```
+
 ## Next Steps
 
 1. Retest Facebook OAuth with only `pages_show_list,pages_read_engagement,pages_manage_posts`.
 2. In Meta use-case settings, enable only the Page permissions needed for Page selection, Page organic read, and Page post management.
 3. Confirm new OAuth debug records only show the `/me/accounts` page discovery response.
-4. Test the Instagram Login publishing path later with `instagram_business_basic` and `instagram_business_content_publish` only.
+4. Manually confirm `social_posts.id = 7` is visible on Instagram.
 5. Add reconciliation for ambiguous Facebook publish failures.
 6. Add a stable API-token workflow for the real calling app instead of throwaway test tokens.
 7. Decide whether scheduled posts are owned entirely here or triggered by the upstream website scheduler.
-8. Add Instagram Business adapter after Facebook Page flow is stable.
-9. Prepare narrow Meta App Review explanations from `PERMISSIONS.md`.
-10. Add production queue monitoring later if database queues become hard to inspect.
+8. Prepare narrow Meta App Review explanations from `PERMISSIONS.md`.
+9. Add production queue monitoring later if database queues become hard to inspect.

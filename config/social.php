@@ -8,6 +8,7 @@ return [
         ],
 
         'instagram' => [
+            'graph_version' => env('INSTAGRAM_GRAPH_VERSION', 'v25.0'),
             'rate_limit_per_minute' => (int) env('INSTAGRAM_RATE_LIMIT_PER_MINUTE', 10),
         ],
 

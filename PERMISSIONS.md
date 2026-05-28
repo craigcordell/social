@@ -107,3 +107,4 @@ Avoid language that implies full Business control, ad management, comment modera
 - Facebook Pages API: https://developers.facebook.com/docs/pages-api/
 - Pages API Manage Pages: https://developers.facebook.com/docs/pages-api/manage-pages/
 - Instagram content publishing: https://developers.facebook.com/docs/instagram-platform/instagram-api-with-facebook-login/content-publishing/
+- Instagram API with Instagram Login: https://developers.facebook.com/docs/instagram-platform/instagram-api-with-instagram-login/
