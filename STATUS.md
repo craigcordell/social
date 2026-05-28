@@ -48,10 +48,11 @@ Mitigation already applied:
 
 - Facebook photo publish requests now use form-encoded parameters instead of JSON.
 - The duplicate was recovered by reading the Page `posts` edge and adding a local record with the real Facebook `post_id`.
+- Facebook photo publish now attempts automatic reconciliation after a 5xx Graph API response by checking the Page's recent `/posts` feed for an exact message match before the queue retries.
 
 Still needed:
 
-- Add first-class recovery/reconciliation behavior for ambiguous provider failures before this handles production volume.
+- Revisit reconciliation once multiple providers exist; current automatic recovery only covers Facebook Page photo publishes.
 
 ## Current Facebook Notes
 
