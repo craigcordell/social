@@ -24,6 +24,8 @@ Implemented for Facebook Pages:
 
 Schema is already shaped for later Instagram Business and Google Business Profile support, but those adapters are not implemented yet.
 
+See `PERMISSIONS.md` for the current Meta permission minimization plan. Round one should aim for Page publishing/deleting and organic Page status only.
+
 ## Local Setup
 
 ```bash
@@ -61,12 +63,12 @@ QUEUE_CONNECTION=database
 FACEBOOK_CLIENT_ID=
 FACEBOOK_CLIENT_SECRET=
 FACEBOOK_REDIRECT_URI=http://localhost:8000/oauth/facebook/callback
-FACEBOOK_SCOPES=pages_show_list,pages_read_engagement,pages_manage_posts,business_management
+FACEBOOK_SCOPES=pages_show_list,pages_read_engagement,pages_manage_posts
 FACEBOOK_GRAPH_VERSION=v25.0
 FACEBOOK_LOGIN_CONFIG_ID=
 ```
 
-For local Facebook OAuth, add `http://localhost:8000/oauth/facebook/callback` to the app's valid redirect URIs. The current working local flow needed `business_management` so the app could discover the CHM Page through the Business `owned_pages` edge.
+For local Facebook OAuth, add `http://localhost:8000/oauth/facebook/callback` to the app's valid redirect URIs. The first working local flow used `business_management` to discover the CHM Page through the Business `owned_pages` edge, but the next permissions pass should try to remove that scope.
 
 ## Admin UI
 

@@ -130,7 +130,7 @@ class FacebookOAuthController extends Controller
 
             return redirect()
                 ->route('connected-accounts.index')
-                ->with('warning', 'Facebook login succeeded, but Meta did not return any Pages. If /me/accounts is empty and business edges show missing permissions, add business_management or use a Business Login configuration that grants Page assets.');
+                ->with('warning', 'Facebook login succeeded, but Meta did not return any Pages from /me/accounts. Confirm the Facebook user has Page access and the app has pages_show_list, pages_read_engagement, and pages_manage_posts.');
         }
 
         $connectedCount = 0;
@@ -193,45 +193,14 @@ class FacebookOAuthController extends Controller
      */
     protected function discoverPages(string $token, string $version): array
     {
-        $raw = [];
-        $pages = [];
-
         $meAccounts = $this->graphGet($token, $version, 'me/accounts', [
             'fields' => 'id,name,access_token,category,tasks',
         ]);
-        $raw['me_accounts'] = $meAccounts;
-        $pages = array_merge($pages, $this->tagPages($meAccounts['data'] ?? [], 'me/accounts'));
 
-        $assignedPages = $this->graphGet($token, $version, 'me/assigned_pages', [
-            'fields' => 'id,name,access_token,category,tasks',
-        ]);
-        $raw['me_assigned_pages'] = $assignedPages;
-        $pages = array_merge($pages, $this->tagPages($assignedPages['data'] ?? [], 'me/assigned_pages'));
-
-        $businesses = $this->graphGet($token, $version, 'me/businesses', [
-            'fields' => 'id,name',
-        ]);
-        $raw['me_businesses'] = $businesses;
-        $raw['business_pages'] = [];
-
-        foreach ($businesses['data'] ?? [] as $business) {
-            foreach (['owned_pages', 'client_pages'] as $edge) {
-                $businessPages = $this->graphGet($token, $version, $business['id'].'/'.$edge, [
-                    'fields' => 'id,name,access_token,category,tasks',
-                ]);
-
-                $raw['business_pages'][] = [
-                    'business_id' => $business['id'] ?? null,
-                    'business_name' => $business['name'] ?? null,
-                    'edge' => $edge,
-                    'response' => $businessPages,
-                ];
-
-                $pages = array_merge($pages, $this->tagPages($businessPages['data'] ?? [], "business/{$edge}"));
-            }
-        }
-
-        return [$this->uniquePages($pages), $raw];
+        return [
+            $this->uniquePages($this->tagPages($meAccounts['data'] ?? [], 'me/accounts')),
+            ['me_accounts' => $meAccounts],
+        ];
     }
 
     /**
