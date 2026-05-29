@@ -45,6 +45,7 @@ class FacebookPageAdapter implements SocialPlatformAdapter
         return [
             'provider_post_id' => $response['post_id'] ?? $response['id'],
             'provider_media_id' => $response['id'] ?? null,
+            'provider_post_url' => $this->postUrl($response['post_id'] ?? $response['id']),
             'provider_response' => $response,
         ];
     }
@@ -94,6 +95,7 @@ class FacebookPageAdapter implements SocialPlatformAdapter
             return [
                 'provider_post_id' => $candidate['id'],
                 'provider_media_id' => $this->attachmentTargetId($candidate),
+                'provider_post_url' => $this->postUrl($candidate['id']),
                 'provider_response' => [
                     'recovered_after_ambiguous_publish_failure' => true,
                     'original_image_url' => $post->image_url,
@@ -103,6 +105,57 @@ class FacebookPageAdapter implements SocialPlatformAdapter
         }
 
         return null;
+    }
+
+    public function comment(ConnectedAccount $account, SocialPostTarget $target, string $comment): array
+    {
+        return $this->graph($account)
+            ->post($this->endpoint($target->provider_post_id.'/comments'), [
+                'message' => $comment,
+            ])
+            ->throw()
+            ->json();
+    }
+
+    public function postAnalytics(ConnectedAccount $account, string $providerPostId): array
+    {
+        $response = $this->graph($account)
+            ->get($this->endpoint($providerPostId), [
+                'fields' => 'id,permalink_url,likes.summary(true),comments.summary(true),shares,reactions.summary(true)',
+            ])
+            ->throw()
+            ->json();
+
+        return [
+            'id' => $response['id'] ?? $providerPostId,
+            'postUrl' => $response['permalink_url'] ?? $this->postUrl($providerPostId),
+            'analytics' => [
+                'likeCount' => data_get($response, 'likes.summary.total_count', 0),
+                'sharesCount' => data_get($response, 'shares.count', 0),
+                'commentsCount' => data_get($response, 'comments.summary.total_count', 0),
+                'reactions' => [
+                    'total' => data_get($response, 'reactions.summary.total_count', 0),
+                ],
+            ],
+        ];
+    }
+
+    public function accountAnalytics(ConnectedAccount $account): array
+    {
+        $response = $this->graph($account)
+            ->get($this->endpoint($account->provider_account_id), [
+                'fields' => 'id,name,followers_count,fan_count',
+            ])
+            ->throw()
+            ->json();
+
+        return [
+            'id' => $response['id'] ?? $account->provider_account_id,
+            'name' => $response['name'] ?? $account->display_name,
+            'followersCount' => $response['followers_count'] ?? $response['fan_count'] ?? 0,
+            'pagePostEngagements' => 0,
+            'pagePostsImpressions' => 0,
+        ];
     }
 
     protected function wasCreatedAfter(?string $createdTime, CarbonInterface $publishedAfter): bool
@@ -120,6 +173,11 @@ class FacebookPageAdapter implements SocialPlatformAdapter
     protected function attachmentTargetId(array $candidate): ?string
     {
         return data_get($candidate, 'attachments.data.0.target.id');
+    }
+
+    protected function postUrl(string $providerPostId): string
+    {
+        return "https://www.facebook.com/{$providerPostId}";
     }
 
     protected function graph(ConnectedAccount $account): PendingRequest

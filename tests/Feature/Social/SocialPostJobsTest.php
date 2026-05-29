@@ -65,6 +65,21 @@ it('marks a target published when the adapter succeeds', function (): void {
         {
             return ['success' => true];
         }
+
+        public function comment(ConnectedAccount $account, SocialPostTarget $target, string $comment): array
+        {
+            return ['id' => 'comment-1'];
+        }
+
+        public function postAnalytics(ConnectedAccount $account, string $providerPostId): array
+        {
+            return [];
+        }
+
+        public function accountAnalytics(ConnectedAccount $account): array
+        {
+            return [];
+        }
     });
 
     $target = socialTarget();
@@ -88,6 +103,21 @@ it('records publish failure before rethrowing for queue retry', function (): voi
         {
             return ['success' => true];
         }
+
+        public function comment(ConnectedAccount $account, SocialPostTarget $target, string $comment): array
+        {
+            return ['id' => 'comment-1'];
+        }
+
+        public function postAnalytics(ConnectedAccount $account, string $providerPostId): array
+        {
+            return [];
+        }
+
+        public function accountAnalytics(ConnectedAccount $account): array
+        {
+            return [];
+        }
     });
 
     $target = socialTarget();
@@ -110,6 +140,21 @@ it('marks a published target deleted when the adapter succeeds', function (): vo
         public function delete(ConnectedAccount $account, SocialPostTarget $target): array
         {
             return ['success' => true];
+        }
+
+        public function comment(ConnectedAccount $account, SocialPostTarget $target, string $comment): array
+        {
+            return ['id' => 'comment-1'];
+        }
+
+        public function postAnalytics(ConnectedAccount $account, string $providerPostId): array
+        {
+            return [];
+        }
+
+        public function accountAnalytics(ConnectedAccount $account): array
+        {
+            return [];
         }
     });
 
@@ -141,6 +186,21 @@ it('marks a published target as manual delete required without failing the job',
                 'message' => 'Delete this post manually.',
                 'provider_post_id' => $target->provider_post_id,
             ];
+        }
+
+        public function comment(ConnectedAccount $account, SocialPostTarget $target, string $comment): array
+        {
+            return ['id' => 'comment-1'];
+        }
+
+        public function postAnalytics(ConnectedAccount $account, string $providerPostId): array
+        {
+            return [];
+        }
+
+        public function accountAnalytics(ConnectedAccount $account): array
+        {
+            return [];
         }
     });
 

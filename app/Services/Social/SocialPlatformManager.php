@@ -17,4 +17,17 @@ class SocialPlatformManager
             default => throw new InvalidArgumentException("Social provider [{$provider}] is not implemented."),
         };
     }
+
+    /**
+     * @return array<int, string>
+     */
+    public function supportedProviders(): array
+    {
+        return ['facebook', 'instagram'];
+    }
+
+    public function supports(string $provider): bool
+    {
+        return in_array($provider, $this->supportedProviders(), true);
+    }
 }

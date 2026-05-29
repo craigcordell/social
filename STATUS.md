@@ -1,6 +1,6 @@
 # Status
 
-Last updated: May 28, 2026
+Last updated: May 29, 2026
 
 ## Working
 
@@ -15,6 +15,9 @@ Last updated: May 28, 2026
 - API deletes queue through `social-delete` and delete Facebook posts by stored `provider_post_id`.
 - OAuth debug callback records are saved and shown on the connections page.
 - Admin UI exists for dashboard, owners, connections, API tokens, and posts.
+- API tokens are assigned to an owner; Ayrshare-compatible calls use that owner as the source of truth for platform targets.
+- Ayrshare-compatible endpoints exist for publish, delete, comments, post analytics, account analytics, and post lookup.
+- Synchronous Ayrshare-compatible publishing returns per-platform `postIds`, durable `provider_post_url` values, and partial failures for unsupported or unlinked platforms.
 - Instagram OAuth redirect/callback routes are implemented for Instagram Login.
 - Instagram connected accounts can be saved with encrypted access tokens.
 - Instagram feed-image publishing adapter is implemented for the two-step media container and media publish flow.
@@ -96,10 +99,10 @@ Still needed:
 
 The `business_management` permission produced stronger Meta consent warnings. It should be treated as a temporary discovery workaround, not a round-one default. See `PERMISSIONS.md` for the permission minimization plan.
 
-The local `.env` scope request has been narrowed back to:
+The Ayrshare-compatible API now needs Page engagement permission for sold-item comments. The local `.env` scope request should be:
 
 ```dotenv
-FACEBOOK_SCOPES=pages_show_list,pages_read_engagement,pages_manage_posts
+FACEBOOK_SCOPES=pages_show_list,pages_read_engagement,pages_manage_posts,pages_manage_engagement
 ```
 
 Meta's broad Page use case still shows `business_management` as ready for testing and did not expose a remove action from the permission table. Keep it out of our OAuth request and retest before assuming it is truly required.
@@ -112,27 +115,28 @@ The callback now discovers Facebook Pages only through `/me/accounts`. It no lon
   - user chooses a Page,
   - app publishes image posts,
   - app deletes only posts created or recovered by this app,
+  - app adds sold-item comments to posts it created,
   - app reads organic post status/engagement.
 - Vendors later connect their own accounts.
 - Instagram feed-image publishing can be set up in round one or 1.5 if it uses the same practical Meta connection flow.
 - Catalog API is phase 2 or 3.
 - Boosting/ads are phase 2.
 - Paid stats come with the ads phase; organic status/engagement is round one.
-- Meta dashboard currently has `instagram_business_basic` and `instagram_business_content_publish` ready for testing for the Instagram API use case.
-- Instagram comments, messages, insights, shopping, and legacy Page-linked Instagram publishing permissions are intentionally not enabled for round one.
+- Meta dashboard previously had `instagram_business_basic` and `instagram_business_content_publish` ready for testing for the Instagram API use case.
+- Ayrshare-compatible Instagram analytics/comments require adding `instagram_business_manage_insights` and, if Instagram sold-item comments stay enabled, `instagram_business_manage_comments`.
+- Instagram messages, shopping, and legacy Page-linked Instagram publishing permissions are intentionally not enabled for round one.
 - Instagram delete is not implemented with the current permission set.
 - Instagram local connection testing should start from `https://social.test/connected-accounts`, not `localhost:8000`, so the OAuth state cookie and callback host match.
 
 Target Facebook scopes to test next:
 
 ```dotenv
-FACEBOOK_SCOPES=pages_show_list,pages_read_engagement,pages_manage_posts
+FACEBOOK_SCOPES=pages_show_list,pages_read_engagement,pages_manage_posts,pages_manage_engagement
 ```
 
 Avoid round-one requests for:
 
 - `business_management`, unless Page selection/token minting still requires it.
-- `pages_manage_engagement`.
 - `pages_read_user_content`.
 - `publish_video`.
 - `catalog_management`.
@@ -144,12 +148,20 @@ Avoid round-one requests for:
 
 Implemented routes:
 
+- `POST /api/post`
+- `DELETE /api/post`
+- `GET /api/post/{post}`
+- `POST /api/comments`
+- `POST /api/analytics/post`
+- `POST /api/analytics/social`
 - `GET /api/connected-accounts`
 - `POST /api/posts`
 - `GET /api/posts/{post}`
 - `DELETE /api/posts/{post}`
 
-The create endpoint supports:
+The singular `/api/post` routes are Ayrshare-compatible and use the owner assigned to the bearer token. Unsupported platforms such as `twitter`, `pinterest`, and `gmb` currently return partial failures.
+
+The internal create endpoint supports:
 
 - `owner_id`
 - `target_ids`
@@ -210,14 +222,26 @@ Last targeted result:
 6 tests passed, 36 assertions
 ```
 
+After adding the Ayrshare-compatible API:
+
+```bash
+php artisan test --compact tests/Feature/ApiTokensControllerTest.php tests/Feature/Api/AyrshareCompatibilityApiTest.php tests/Feature/Api/SocialPublishingApiTest.php tests/Feature/Social/FacebookPageAdapterTest.php tests/Feature/Social/InstagramBusinessAdapterTest.php tests/Feature/Social/InstagramOAuthControllerTest.php tests/Feature/Social/FacebookOAuthControllerTest.php tests/Feature/Social/SocialPostJobsTest.php
+```
+
+Last targeted result:
+
+```text
+34 tests passed, 166 assertions
+```
+
 ## Next Steps
 
-1. Retest Facebook OAuth with only `pages_show_list,pages_read_engagement,pages_manage_posts`.
-2. In Meta use-case settings, enable only the Page permissions needed for Page selection, Page organic read, and Page post management.
+1. Retest Facebook OAuth with `pages_show_list,pages_read_engagement,pages_manage_posts,pages_manage_engagement`.
+2. In Meta use-case settings, enable only the Page permissions needed for Page selection, Page organic read, Page post management, and sold-item comments.
 3. Confirm new OAuth debug records only show the `/me/accounts` page discovery response.
 4. Manually confirm `social_posts.id = 7` is visible on Instagram.
-5. Add reconciliation for ambiguous Facebook publish failures.
-6. Add a stable API-token workflow for the real calling app instead of throwaway test tokens.
+5. Manually smoke test the Ayrshare-compatible `/api/post` flow with the real POS2024 bearer token after creating an owner-bound token.
+6. Add reconciliation for ambiguous Facebook publish failures across the synchronous compatibility path if manual testing exposes duplicate risk.
 7. Decide whether scheduled posts are owned entirely here or triggered by the upstream website scheduler.
 8. Prepare narrow Meta App Review explanations from `PERMISSIONS.md`.
 9. Add production queue monitoring later if database queues become hard to inspect.

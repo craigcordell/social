@@ -66,6 +66,7 @@ class PublishSocialPostTarget implements ShouldQueue
                 'publish_status' => SocialPostTarget::PUBLISH_STATUS_PUBLISHED,
                 'provider_post_id' => $result['provider_post_id'],
                 'provider_media_id' => $result['provider_media_id'] ?? null,
+                'provider_post_url' => $result['provider_post_url'] ?? null,
                 'provider_response' => $result['provider_response'],
                 'published_at' => now(),
                 'last_error' => null,

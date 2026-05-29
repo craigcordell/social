@@ -9,8 +9,10 @@ use App\Models\Owner;
 use Illuminate\Http\Client\RequestException;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
 use Laravel\Socialite\Facades\Socialite;
 use Throwable;
 
@@ -22,34 +24,56 @@ class FacebookOAuthController extends Controller
             'owner_id' => ['required', 'integer', 'exists:owners,id'],
         ]);
 
-        session(['facebook_oauth_owner_id' => $data['owner_id']]);
+        $state = Str::random(40);
 
-        $driver = Socialite::driver('facebook');
-        $loginConfigId = config('services.facebook.login_config_id');
+        session([
+            'facebook_oauth_owner_id' => $data['owner_id'],
+            'facebook_oauth_state' => $state,
+        ]);
 
-        if (filled($loginConfigId)) {
-            return $driver
-                ->setScopes([])
-                ->with([
-                    'config_id' => $loginConfigId,
-                    'auth_type' => 'rerequest',
-                    'override_default_response_type' => true,
-                ])
-                ->redirect();
+        Cache::put($this->stateCacheKey($state), [
+            'owner_id' => $data['owner_id'],
+        ], now()->addMinutes(15));
+
+        $query = [
+            'client_id' => config('services.facebook.client_id'),
+            'redirect_uri' => config('services.facebook.redirect'),
+            'state' => $state,
+            'response_type' => 'code',
+            'auth_type' => 'rerequest',
+        ];
+
+        if (filled(config('services.facebook.login_config_id'))) {
+            $query['config_id'] = config('services.facebook.login_config_id');
+            $query['override_default_response_type'] = true;
+        } else {
+            $query['scope'] = implode(',', config('services.facebook.scopes', []));
         }
 
-        return $driver
-            ->setScopes(config('services.facebook.scopes', []))
-            ->with(['auth_type' => 'rerequest'])
-            ->redirect();
+        return redirect()->away('https://www.facebook.com/v23.0/dialog/oauth?'.http_build_query($query));
     }
 
     public function callback(Request $request): RedirectResponse
     {
-        $ownerId = session()->pull('facebook_oauth_owner_id');
+        $state = $request->query('state');
+        $cachedState = is_string($state) ? Cache::pull($this->stateCacheKey($state)) : null;
+        $ownerId = $cachedState['owner_id'] ?? session()->pull('facebook_oauth_owner_id');
+        $expectedState = session()->pull('facebook_oauth_state');
         $owner = $ownerId ? Owner::query()->find($ownerId) : null;
 
-        abort_unless($owner, 403);
+        if (! $owner || ($cachedState === null && ! hash_equals((string) $expectedState, (string) $state))) {
+            OAuthDebugAttempt::query()->create([
+                'provider' => 'facebook',
+                'owner_id' => $owner?->id,
+                'status' => 'invalid_state',
+                'callback_query' => $this->sanitizePayload($request->query()),
+                'error_message' => 'Facebook OAuth callback state was missing, expired, or did not match the active session.',
+            ]);
+
+            return redirect()
+                ->route('connected-accounts.index')
+                ->with('warning', 'Facebook login could not be verified. Please start the connection again from this page.');
+        }
 
         $debugAttempt = OAuthDebugAttempt::query()->create([
             'provider' => 'facebook',
@@ -58,8 +82,19 @@ class FacebookOAuthController extends Controller
             'callback_query' => $this->sanitizePayload($request->query()),
         ]);
 
+        if ($request->filled('error') || $request->filled('error_code') || ! $request->filled('code')) {
+            $debugAttempt->forceFill([
+                'status' => 'denied_or_failed',
+                'error_message' => $request->string('error_message')->toString() ?: 'Facebook login was cancelled, denied, or did not return an authorization code.',
+            ])->save();
+
+            return redirect()
+                ->route('connected-accounts.index')
+                ->with('warning', 'Facebook login was cancelled or denied.');
+        }
+
         try {
-            $facebookUser = Socialite::driver('facebook')->user();
+            $facebookUser = Socialite::driver('facebook')->stateless()->user();
             $version = config('social.providers.facebook.graph_version', 'v25.0');
 
             $debugAttempt->forceFill([
@@ -286,5 +321,10 @@ class FacebookOAuthController extends Controller
         }
 
         return substr($token, 0, 8).'...masked';
+    }
+
+    protected function stateCacheKey(string $state): string
+    {
+        return "facebook_oauth_state:{$state}";
     }
 }

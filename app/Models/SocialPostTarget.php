@@ -36,6 +36,7 @@ class SocialPostTarget extends Model
         'delete_status',
         'provider_post_id',
         'provider_media_id',
+        'provider_post_url',
         'provider_response',
         'publish_attempts',
         'delete_attempts',

@@ -21,10 +21,10 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::delete('api-tokens/{token}', [ApiTokensController::class, 'destroy'])->name('api-tokens.destroy');
     Route::get('posts', [DashboardController::class, 'posts'])->name('posts.index');
     Route::get('oauth/facebook/redirect', [FacebookOAuthController::class, 'redirect'])->name('oauth.facebook.redirect');
-    Route::get('oauth/facebook/callback', [FacebookOAuthController::class, 'callback'])->name('oauth.facebook.callback');
     Route::get('oauth/instagram/redirect', [InstagramOAuthController::class, 'redirect'])->name('oauth.instagram.redirect');
 });
 
+Route::get('oauth/facebook/callback', [FacebookOAuthController::class, 'callback'])->name('oauth.facebook.callback');
 Route::get('oauth/instagram/callback', [InstagramOAuthController::class, 'callback'])->name('oauth.instagram.callback');
 
 require __DIR__.'/settings.php';

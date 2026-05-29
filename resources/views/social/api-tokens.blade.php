@@ -15,6 +15,11 @@
         <form method="POST" action="{{ route('api-tokens.store') }}" class="flex flex-wrap items-end gap-4 rounded-lg border border-zinc-200 p-4 dark:border-zinc-700">
             @csrf
             <flux:input name="name" label="Token name" required />
+            <flux:select name="owner_id" label="Owner" required>
+                @foreach ($owners as $owner)
+                    <flux:select.option value="{{ $owner->id }}">{{ $owner->name }}</flux:select.option>
+                @endforeach
+            </flux:select>
             <flux:button type="submit" variant="primary" icon="key">Create token</flux:button>
         </form>
 
@@ -23,6 +28,7 @@
                 <thead class="bg-zinc-50 text-left dark:bg-zinc-900">
                     <tr>
                         <th class="px-4 py-3 font-medium">Name</th>
+                        <th class="px-4 py-3 font-medium">Owner</th>
                         <th class="px-4 py-3 font-medium">Last used</th>
                         <th class="px-4 py-3 font-medium">Created</th>
                         <th class="px-4 py-3 font-medium"></th>
@@ -32,6 +38,7 @@
                     @forelse ($tokens as $token)
                         <tr>
                             <td class="px-4 py-3">{{ $token->name }}</td>
+                            <td class="px-4 py-3">{{ $token->owner?->name ?? 'Unassigned' }}</td>
                             <td class="px-4 py-3">{{ $token->last_used_at?->diffForHumans() ?? 'Never' }}</td>
                             <td class="px-4 py-3">{{ $token->created_at->toDayDateTimeString() }}</td>
                             <td class="px-4 py-3 text-right">
@@ -44,7 +51,7 @@
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="4" class="px-4 py-6 text-center text-zinc-500">No API tokens yet.</td>
+                            <td colspan="5" class="px-4 py-6 text-center text-zinc-500">No API tokens yet.</td>
                         </tr>
                     @endforelse
                 </tbody>

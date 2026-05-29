@@ -69,14 +69,14 @@ QUEUE_CONNECTION=database
 FACEBOOK_CLIENT_ID=
 FACEBOOK_CLIENT_SECRET=
 FACEBOOK_REDIRECT_URI=http://localhost:8000/oauth/facebook/callback
-FACEBOOK_SCOPES=pages_show_list,pages_read_engagement,pages_manage_posts
+FACEBOOK_SCOPES=pages_show_list,pages_read_engagement,pages_manage_posts,pages_manage_engagement
 FACEBOOK_GRAPH_VERSION=v25.0
 FACEBOOK_LOGIN_CONFIG_ID=
 
 INSTAGRAM_CLIENT_ID="${FACEBOOK_CLIENT_ID}"
 INSTAGRAM_CLIENT_SECRET="${FACEBOOK_CLIENT_SECRET}"
 INSTAGRAM_REDIRECT_URI=https://social.test/oauth/instagram/callback
-INSTAGRAM_SCOPES=instagram_business_basic,instagram_business_content_publish
+INSTAGRAM_SCOPES=instagram_business_basic,instagram_business_content_publish,instagram_business_manage_insights,instagram_business_manage_comments
 INSTAGRAM_GRAPH_VERSION=v25.0
 ```
 
@@ -97,11 +97,19 @@ For local Instagram OAuth, use Herd's secured local domain. Run `herd secure soc
 All API routes require a Sanctum bearer token.
 
 ```http
+POST /api/post
+DELETE /api/post
+GET /api/post/{post}
+POST /api/comments
+POST /api/analytics/post
+POST /api/analytics/social
 GET /api/connected-accounts
 POST /api/posts
 GET /api/posts/{post}
 DELETE /api/posts/{post}
 ```
+
+The singular `/api/post`, `/api/comments`, and `/api/analytics/*` endpoints are Ayrshare-compatible. Tokens used by those endpoints must be assigned to an owner on the API token screen.
 
 Create post payload:
 

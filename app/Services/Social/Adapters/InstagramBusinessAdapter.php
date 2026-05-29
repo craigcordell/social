@@ -30,13 +30,17 @@ class InstagramBusinessAdapter implements SocialPlatformAdapter
             ->throw()
             ->json();
 
+        $media = $this->media($account, $published['id']);
+
         return [
             'provider_post_id' => $published['id'],
             'provider_media_id' => $container['id'],
+            'provider_post_url' => $media['permalink'] ?? null,
             'provider_response' => [
                 'container' => $container,
                 'container_status' => $containerStatus,
                 'published' => $published,
+                'media' => $media,
             ],
         ];
     }
@@ -47,6 +51,51 @@ class InstagramBusinessAdapter implements SocialPlatformAdapter
             'manual_delete_required' => true,
             'message' => 'Instagram does not support deleting published feed media through the current Instagram API. Delete this post manually in Instagram.',
             'provider_post_id' => $target->provider_post_id,
+        ];
+    }
+
+    public function comment(ConnectedAccount $account, SocialPostTarget $target, string $comment): array
+    {
+        return $this->graph($account)
+            ->post($this->endpoint($target->provider_post_id.'/comments'), [
+                'message' => $comment,
+            ])
+            ->throw()
+            ->json();
+    }
+
+    public function postAnalytics(ConnectedAccount $account, string $providerPostId): array
+    {
+        $media = $this->media($account, $providerPostId);
+
+        return [
+            'id' => $media['id'] ?? $providerPostId,
+            'postUrl' => $media['permalink'] ?? null,
+            'analytics' => [
+                'likeCount' => $media['like_count'] ?? 0,
+                'sharesCount' => 0,
+                'commentsCount' => $media['comments_count'] ?? 0,
+            ],
+        ];
+    }
+
+    public function accountAnalytics(ConnectedAccount $account): array
+    {
+        $response = $this->graph($account)
+            ->get($this->endpoint($account->provider_account_id), [
+                'fields' => 'id,username,followers_count,media_count',
+            ])
+            ->throw()
+            ->json();
+
+        return [
+            'id' => $response['id'] ?? $account->provider_account_id,
+            'username' => $response['username'] ?? $account->display_name,
+            'followersCount' => $response['followers_count'] ?? 0,
+            'likeCount' => 0,
+            'commentsCount' => 0,
+            'reachCount' => 0,
+            'viewsCount' => 0,
         ];
     }
 
@@ -86,6 +135,19 @@ class InstagramBusinessAdapter implements SocialPlatformAdapter
         }
 
         throw new RuntimeException('Instagram media container was not ready for publishing: '.($status['status_code'] ?? 'unknown'));
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    protected function media(ConnectedAccount $account, string $mediaId): array
+    {
+        return $this->graph($account)
+            ->get($this->endpoint($mediaId), [
+                'fields' => 'id,permalink,like_count,comments_count',
+            ])
+            ->throw()
+            ->json();
     }
 
     protected function endpoint(string $path): string

@@ -152,6 +152,7 @@ class SocialPostController extends Controller
                 'publish_status' => $target->publish_status,
                 'delete_status' => $target->delete_status,
                 'provider_post_id' => $target->provider_post_id,
+                'provider_post_url' => $target->provider_post_url,
                 'publish_attempts' => $target->publish_attempts,
                 'delete_attempts' => $target->delete_attempts,
                 'last_error' => $target->last_error,
