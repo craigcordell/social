@@ -2,7 +2,7 @@
     <div class="flex h-full w-full flex-1 flex-col gap-6">
         <div>
             <flux:heading size="xl">Connections</flux:heading>
-            <flux:text>Connect Facebook Pages and Instagram professional accounts for queued publishing.</flux:text>
+            <flux:text>Connect Facebook Pages, Instagram professional accounts, and Google Business Profile locations for publishing.</flux:text>
         </div>
 
         @if (session('warning'))
@@ -31,6 +31,27 @@
                     <div class="md:col-span-2">
                         <dt class="opacity-70">Pages</dt>
                         <dd><code>{{ collect($debug['pages'])->map(fn ($page) => "{$page['name']} ({$page['id']}), token=".($page['has_access_token'] ? 'yes' : 'no'))->implode('; ') ?: 'None returned' }}</code></dd>
+                    </div>
+                </dl>
+            </div>
+        @endif
+
+        @if (session('google_business_oauth_debug'))
+            @php($debug = session('google_business_oauth_debug'))
+            <div class="rounded-lg border border-sky-200 bg-sky-50 p-4 text-sm text-sky-950 dark:border-sky-900 dark:bg-sky-950 dark:text-sky-100">
+                <div class="mb-3 font-medium">Last Google Business OAuth callback</div>
+                <dl class="grid gap-3 md:grid-cols-2">
+                    <div>
+                        <dt class="opacity-70">Accounts returned</dt>
+                        <dd>{{ $debug['account_count'] }}</dd>
+                    </div>
+                    <div>
+                        <dt class="opacity-70">Locations returned</dt>
+                        <dd>{{ $debug['location_count'] }}</dd>
+                    </div>
+                    <div class="md:col-span-2">
+                        <dt class="opacity-70">Locations</dt>
+                        <dd><code>{{ collect($debug['locations'])->map(fn ($location) => "{$location['title']} ({$location['name']})")->implode('; ') ?: 'None returned' }}</code></dd>
                     </div>
                 </dl>
             </div>
@@ -92,6 +113,28 @@
             </dl>
         </div>
 
+        <div class="rounded-lg border border-zinc-200 p-4 text-sm dark:border-zinc-700">
+            <div class="mb-3 font-medium">Google Business app settings</div>
+            <dl class="grid gap-3 md:grid-cols-2">
+                <div>
+                    <dt class="text-zinc-500">Client ID</dt>
+                    <dd>{{ $googleBusinessConfig['client_id'] ?: 'Not configured' }}</dd>
+                </div>
+                <div>
+                    <dt class="text-zinc-500">Client secret</dt>
+                    <dd>{{ $googleBusinessConfig['has_client_secret'] ? 'Configured' : 'Not configured' }}</dd>
+                </div>
+                <div>
+                    <dt class="text-zinc-500">OAuth redirect URI</dt>
+                    <dd><code>{{ $googleBusinessConfig['redirect_uri'] }}</code></dd>
+                </div>
+                <div>
+                    <dt class="text-zinc-500">Requested scopes</dt>
+                    <dd><code>{{ implode(', ', $googleBusinessConfig['scopes']) }}</code></dd>
+                </div>
+            </dl>
+        </div>
+
         <form method="GET" action="{{ route('oauth.facebook.redirect') }}" class="flex flex-wrap items-end gap-4 rounded-lg border border-zinc-200 p-4 dark:border-zinc-700">
             <flux:select name="owner_id" label="Owner" required>
                 @foreach ($owners as $owner)
@@ -108,6 +151,15 @@
                 @endforeach
             </flux:select>
             <flux:button type="submit" variant="primary" icon="link">Connect Instagram</flux:button>
+        </form>
+
+        <form method="GET" action="{{ route('oauth.google-business.redirect') }}" class="flex flex-wrap items-end gap-4 rounded-lg border border-zinc-200 p-4 dark:border-zinc-700">
+            <flux:select name="owner_id" label="Owner" required>
+                @foreach ($owners as $owner)
+                    <flux:select.option value="{{ $owner->id }}">{{ $owner->name }}</flux:select.option>
+                @endforeach
+            </flux:select>
+            <flux:button type="submit" variant="primary" icon="link">Connect Google Business</flux:button>
         </form>
 
         <div class="overflow-hidden rounded-lg border border-zinc-200 dark:border-zinc-700">

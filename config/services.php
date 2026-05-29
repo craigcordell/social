@@ -50,4 +50,11 @@ return [
         'scopes' => array_filter(array_map('trim', explode(',', env('INSTAGRAM_SCOPES', 'instagram_business_basic,instagram_business_content_publish,instagram_business_manage_insights,instagram_business_manage_comments')))),
     ],
 
+    'google_business' => [
+        'client_id' => env('GOOGLE_BUSINESS_CLIENT_ID'),
+        'client_secret' => env('GOOGLE_BUSINESS_CLIENT_SECRET'),
+        'redirect' => env('GOOGLE_BUSINESS_REDIRECT_URI'),
+        'scopes' => array_filter(array_map('trim', explode(',', env('GOOGLE_BUSINESS_SCOPES', 'https://www.googleapis.com/auth/business.manage')))),
+    ],
+
 ];

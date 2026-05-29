@@ -18,6 +18,7 @@ Last updated: May 29, 2026
 - API tokens are assigned to an owner; Ayrshare-compatible calls use that owner as the source of truth for platform targets.
 - Ayrshare-compatible endpoints exist for publish, delete, comments, post analytics, account analytics, and post lookup.
 - Synchronous Ayrshare-compatible publishing returns per-platform `postIds`, durable `provider_post_url` values, and partial failures for unsupported or unlinked platforms.
+- The public API is now only the Ayrshare-shaped contract; the older `/api/posts` owner/target-id syntax has been removed.
 - Instagram OAuth redirect/callback routes are implemented for Instagram Login.
 - Instagram connected accounts can be saved with encrypted access tokens.
 - Instagram feed-image publishing adapter is implemented for the two-step media container and media publish flow.
@@ -25,6 +26,11 @@ Last updated: May 29, 2026
 - Instagram app credentials are configured locally and Meta accepted the HTTPS callback `https://social.test/oauth/instagram/callback`.
 - Herd is serving `https://social.test` with PHP 8.4 for this project.
 - Instagram account `claytonhousemarketplace` connected successfully as `connected_accounts.id = 3`.
+- Google Business Profile OAuth redirect/callback routes are implemented at `/oauth/google-business/redirect` and `/oauth/google-business/callback`.
+- Google Business OAuth saves every returned location as an active `gmb` connected account using the existing `connected_accounts` table.
+- Google Business local post publish, delete, post analytics, and account analytics are implemented in `GoogleBusinessProfileAdapter`.
+- `POST /api/post` accepts `gmb`, `google_business`, and `google_business_profile` and publishes synchronously through connected Google locations.
+- `POST /api/analytics/social` aggregates all active Google Business locations into one `gmb.analytics` block with per-location detail preserved.
 
 ## Verified Manually
 
@@ -63,7 +69,7 @@ Instagram publish smoke test:
   - Instagram media id: `18082816811438704`
   - Instagram container id: `18473686879099933`
   - Final local status after delete test: `published`
-  - Delete attempt through `DELETE /api/posts/7` queued correctly, but Meta rejected `DELETE /18082816811438704` with `Unsupported delete request`.
+  - Delete attempt through the API was recorded locally, but Meta rejected `DELETE /18082816811438704` with `Unsupported delete request`.
   - The app now treats Instagram deletes as terminal `manual_delete_required`, not retryable failures.
   - Local target `social_post_targets.id = 6` has `delete_status = manual_delete_required` and `delete_attempts = 1`.
 
@@ -155,22 +161,8 @@ Implemented routes:
 - `POST /api/analytics/post`
 - `POST /api/analytics/social`
 - `GET /api/connected-accounts`
-- `POST /api/posts`
-- `GET /api/posts/{post}`
-- `DELETE /api/posts/{post}`
 
-The singular `/api/post` routes are Ayrshare-compatible and use the owner assigned to the bearer token. Unsupported platforms such as `twitter`, `pinterest`, and `gmb` currently return partial failures.
-
-The internal create endpoint supports:
-
-- `owner_id`
-- `target_ids`
-- `caption`
-- `image_url`
-- `link_url`
-- `scheduled_at`
-- `external_id`
-- `idempotency_key`
+These routes use the owner assigned to the bearer token. Request payloads do not select an owner or target account directly. Unsupported platforms such as `twitter` and `pinterest` currently return partial failures. Google Business comments also return a clear partial failure because Google local posts do not support comments through this adapter.
 
 ## Tests
 
@@ -234,14 +226,52 @@ Last targeted result:
 34 tests passed, 166 assertions
 ```
 
+After removing the legacy `/api/posts` public API syntax:
+
+```bash
+php artisan test --compact tests/Feature/ApiTokensControllerTest.php tests/Feature/Api/AyrshareCompatibilityApiTest.php tests/Feature/Api/SocialPublishingApiTest.php tests/Feature/Social/FacebookPageAdapterTest.php tests/Feature/Social/InstagramBusinessAdapterTest.php tests/Feature/Social/InstagramOAuthControllerTest.php tests/Feature/Social/FacebookOAuthControllerTest.php tests/Feature/Social/SocialPostJobsTest.php
+```
+
+Last targeted result:
+
+```text
+35 tests passed, 159 assertions
+```
+
+Full suite after the API cleanup:
+
+```bash
+php artisan test --compact
+```
+
+After adding Google Business Profile OAuth, publishing, delete, comments failure, and analytics:
+
+```bash
+php artisan test --compact tests/Feature/Social/GoogleBusinessOAuthControllerTest.php tests/Feature/Social/GoogleBusinessProfileAdapterTest.php tests/Feature/Api/AyrshareCompatibilityApiTest.php
+```
+
+Last targeted result:
+
+```text
+16 tests passed, 86 assertions
+```
+
+Last full result:
+
+```text
+77 tests passed, 291 assertions
+```
+
 ## Next Steps
 
 1. Retest Facebook OAuth with `pages_show_list,pages_read_engagement,pages_manage_posts,pages_manage_engagement`.
 2. In Meta use-case settings, enable only the Page permissions needed for Page selection, Page organic read, Page post management, and sold-item comments.
 3. Confirm new OAuth debug records only show the `/me/accounts` page discovery response.
 4. Manually confirm `social_posts.id = 7` is visible on Instagram.
-5. Manually smoke test the Ayrshare-compatible `/api/post` flow with the real POS2024 bearer token after creating an owner-bound token.
-6. Add reconciliation for ambiguous Facebook publish failures across the synchronous compatibility path if manual testing exposes duplicate risk.
-7. Decide whether scheduled posts are owned entirely here or triggered by the upstream website scheduler.
-8. Prepare narrow Meta App Review explanations from `PERMISSIONS.md`.
-9. Add production queue monitoring later if database queues become hard to inspect.
+5. Manually smoke test the `/api/post` flow with the real POS2024 bearer token after creating an owner-bound token.
+6. Configure and manually test Google Business OAuth with a real Google Cloud OAuth client and a Google user that manages the Business Profile.
+7. Adjust Google Business metric names if the first production Performance API response reports an unavailable metric for the connected profile.
+8. Add reconciliation for ambiguous Facebook publish failures across the synchronous compatibility path if manual testing exposes duplicate risk.
+9. Decide whether scheduled posts are owned entirely here or triggered by the upstream website scheduler.
+10. Prepare narrow Meta App Review explanations from `PERMISSIONS.md`.
+11. Add production queue monitoring later if database queues become hard to inspect.

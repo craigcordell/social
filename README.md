@@ -23,7 +23,7 @@ Implemented for Facebook Pages:
 - Add comments to app-created posts for sold-item updates.
 - Track aggregate post status and per-target publish/delete status.
 
-Started for Instagram professional accounts:
+Implemented for Instagram professional accounts:
 
 - Connect Instagram accounts with the Instagram Login OAuth flow.
 - Store Instagram access tokens encrypted in `connected_accounts`.
@@ -31,7 +31,14 @@ Started for Instagram professional accounts:
 - Add comments to app-created media for sold-item updates.
 - Mark deletes as `manual_delete_required` because Meta's Instagram media API does not currently support deleting published feed media.
 
-Google Business Profile support is still schema-only.
+Implemented for Google Business Profile locations:
+
+- Connect Google Business Profile through OAuth with `business.manage`.
+- Save all accessible locations as active `gmb` connected accounts.
+- Publish image local posts through the Google local posts API.
+- Delete app-created Google local posts.
+- Return explicit partial failures for sold-item comments because Google local posts do not support comments through this adapter.
+- Read local post insights and aggregate account analytics across connected locations.
 
 See `PERMISSIONS.md` for the current Meta permission minimization plan. Round one supports publishing, deleting where the provider allows it, organic status/analytics, and sold-item comments.
 
@@ -80,17 +87,24 @@ INSTAGRAM_CLIENT_SECRET="${FACEBOOK_CLIENT_SECRET}"
 INSTAGRAM_REDIRECT_URI=https://social.test/oauth/instagram/callback
 INSTAGRAM_SCOPES=instagram_business_basic,instagram_business_content_publish,instagram_business_manage_insights,instagram_business_manage_comments
 INSTAGRAM_GRAPH_VERSION=v25.0
+
+GOOGLE_BUSINESS_CLIENT_ID=
+GOOGLE_BUSINESS_CLIENT_SECRET=
+GOOGLE_BUSINESS_REDIRECT_URI=https://social.test/oauth/google-business/callback
+GOOGLE_BUSINESS_SCOPES=https://www.googleapis.com/auth/business.manage
 ```
 
 For local Facebook OAuth, use Herd's secured local domain and add `https://social.test/oauth/facebook/callback` to the app's valid redirect URIs. `business_management` is not requested by the app; if Meta still reports it in `/me/permissions`, treat it as a previously granted Meta-side integration permission rather than part of this app's current scope request.
 
 For local Instagram OAuth, use Herd's secured local domain. Run `herd secure social` if needed, then add `https://social.test/oauth/instagram/callback` to the Instagram API with Instagram Login redirect URI settings. Start the connection flow from `https://social.test/connected-accounts` so Laravel's OAuth state session stays on the same host.
 
+For local Google Business OAuth, create or choose a Google Cloud project, enable the Google Business Profile / My Business API, Business Profile Account Management API, Business Profile Business Information API, and Business Profile Performance API. Configure the OAuth consent screen with the `https://www.googleapis.com/auth/business.manage` scope, add local test users that manage the Business Profile, then create a Web application OAuth client with `https://social.test/oauth/google-business/callback` as an authorized redirect URI. Start the connection flow from `https://social.test/connected-accounts`.
+
 ## Admin UI
 
 - `/dashboard` - summary
 - `/owners` - internal/vendor owner records
-- `/connected-accounts` - Facebook OAuth, app settings, connected accounts, OAuth debug attempts
+- `/connected-accounts` - Facebook, Instagram, and Google Business OAuth, app settings, connected accounts, OAuth debug attempts
 - `/api-tokens` - create/revoke Sanctum API tokens
 - `/posts` - post/target history
 
@@ -106,29 +120,24 @@ POST /api/comments
 POST /api/analytics/post
 POST /api/analytics/social
 GET /api/connected-accounts
-POST /api/posts
-GET /api/posts/{post}
-DELETE /api/posts/{post}
 ```
 
-The singular `/api/post`, `/api/comments`, and `/api/analytics/*` endpoints are Ayrshare-compatible. Tokens used by those endpoints must be assigned to an owner on the API token screen.
+The API is Ayrshare-compatible. Tokens must be assigned to exactly one owner on the API token screen; request payloads do not choose `owner_id`. The token owner is the source of truth for which connected accounts are eligible for each requested platform.
 
 Create post payload:
 
 ```json
 {
-  "owner_id": 1,
-  "target_ids": [1],
-  "caption": "Post text",
-  "image_url": "https://example.com/image.jpg",
-  "link_url": "https://example.com/item",
-  "scheduled_at": "2026-05-28T20:00:00Z",
-  "external_id": "optional-source-id",
-  "idempotency_key": "optional-idempotency-key"
+  "post": "Post text",
+  "platforms": ["facebook", "instagram", "gmb"],
+  "mediaUrls": ["https://example.com/image.jpg"],
+  "pinterestOptions": {
+    "link": "https://example.com/item"
+  }
 }
 ```
 
-`scheduled_at`, `link_url`, `external_id`, and `idempotency_key` are optional. Reusing the same `idempotency_key` for the same owner returns the existing local post instead of creating a duplicate.
+Publishing is synchronous for now so callers receive provider `postIds` in the response. Unsupported or unlinked requested platforms return Ayrshare-shaped partial failures.
 
 ## Testing
 

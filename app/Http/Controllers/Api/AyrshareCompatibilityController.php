@@ -300,17 +300,25 @@ class AyrshareCompatibilityController extends Controller
         $errors = [];
 
         foreach ($this->requestedPlatforms($data['platforms']) as $platform) {
-            $account = $this->connectedAccounts($owner, $platform)->first();
+            $accounts = $this->connectedAccounts($owner, $platform);
 
-            if (! $this->platforms->supports($platform) || ! $account) {
+            if (! $this->platforms->supports($platform) || $accounts->isEmpty()) {
                 $errors[] = $this->platformError($platform, 'analytics', "{$this->platformName($platform)} is not linked or implemented.");
 
                 continue;
             }
 
             try {
+                if ($platform === 'gmb') {
+                    $response[$platform] = [
+                        'analytics' => $this->aggregateGoogleBusinessAnalytics($accounts),
+                    ];
+
+                    continue;
+                }
+
                 $response[$platform] = [
-                    'analytics' => $this->platforms->adapter($platform)->accountAnalytics($account),
+                    'analytics' => $this->platforms->adapter($platform)->accountAnalytics($accounts->first()),
                 ];
             } catch (Throwable $exception) {
                 $errors[] = $this->platformError($platform, 'analytics', $exception->getMessage());
@@ -322,6 +330,29 @@ class AyrshareCompatibilityController extends Controller
         }
 
         return response()->json($response);
+    }
+
+    /**
+     * @param  EloquentCollection<int, ConnectedAccount>  $accounts
+     * @return array<string, mixed>
+     */
+    protected function aggregateGoogleBusinessAnalytics(EloquentCollection $accounts): array
+    {
+        $locations = $accounts
+            ->map(fn (ConnectedAccount $account): array => $this->platforms->adapter('gmb')->accountAnalytics($account))
+            ->values()
+            ->all();
+
+        return [
+            'callClicks' => collect($locations)->sum('callClicks'),
+            'websiteClicks' => collect($locations)->sum('websiteClicks'),
+            'businessDirectionRequests' => collect($locations)->sum('businessDirectionRequests'),
+            'businessImpressionsMobileMaps' => collect($locations)->sum('businessImpressionsMobileMaps'),
+            'businessImpressionsDesktopMaps' => collect($locations)->sum('businessImpressionsDesktopMaps'),
+            'businessImpressionsMobileSearch' => collect($locations)->sum('businessImpressionsMobileSearch'),
+            'businessImpressionsDesktopSearch' => collect($locations)->sum('businessImpressionsDesktopSearch'),
+            'locations' => $locations,
+        ];
     }
 
     protected function mergeAnalytics(array &$response, array &$errors, ConnectedAccount $account, string $providerPostId): void

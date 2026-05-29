@@ -27,6 +27,8 @@ Content-Type: application/json
 
 The replacement should accept the same bearer-token style authentication so the app can continue using `config('services.ayrshare.api_key')`.
 
+In this Laravel app, each bearer token is assigned to exactly one local `owners` row. The token owner is the source of truth for eligible connected platform accounts; publish requests do not include `owner_id` or platform account IDs.
+
 ## Endpoints Used By This App
 
 ```http
@@ -68,6 +70,7 @@ POST /api/post
 ### Request Notes
 
 - `platforms` may include `facebook`, `instagram`, `twitter`, `pinterest`, and `gmb`.
+- `google_business` and `google_business_profile` are accepted as aliases and normalize to `gmb`.
 - If `twitter` is included, the app adds `twitterOptions.longPost = true`.
 - If `pinterest` is included for item posts, the app sends `pinterestOptions.link`.
 - `mediaUrls` is always sent as an array and may contain a nullable/empty value depending on whether the local post has an image.
@@ -75,7 +78,7 @@ POST /api/post
 
 ### Success Response
 
-The app stores the entire response in `posts.ayrshare_response`, stores `id` in `posts.ayrshare_post_id`, and stores `status` in `posts.status`.
+The replacement stores the canonical post request in `social_posts` and stores each platform result in `social_post_targets`, including native provider IDs, public URLs, normalized status, and the provider response.
 
 ```json
 {
@@ -218,15 +221,15 @@ Instagram comments on app-created media require:
 - `instagram_business_manage_insights`
 - `instagram_business_manage_comments`
 
-## Get Post Info
+Google Business Profile local posts do not support sold-item comments through this adapter. The API returns an Ayrshare-shaped partial failure for `gmb` comment attempts rather than silently no-oping.
 
-The service has a method for this endpoint:
+## Get Post Info
 
 ```http
 GET /api/post/{id}
 ```
 
-It is not currently used by active runtime code. It appears only in a commented historical import migration. Implementing it is useful for compatibility but not required for current posting workflows.
+Returns the stored Ayrshare-shaped group post response for a local `social_posts.id` owned by the bearer token's owner.
 
 ## Post Analytics
 
@@ -385,7 +388,8 @@ Minimum compatible response:
       "businessImpressionsMobileMaps": 0,
       "businessImpressionsDesktopMaps": 0,
       "businessImpressionsMobileSearch": 0,
-      "businessImpressionsDesktopSearch": 0
+      "businessImpressionsDesktopSearch": 0,
+      "locations": []
     }
   },
   "pinterest": {
@@ -399,6 +403,8 @@ Minimum compatible response:
   }
 }
 ```
+
+For `gmb`, the replacement aggregates all active Google Business connected locations for the token owner into the top-level `gmb.analytics` values and includes the per-location API result in `gmb.analytics.locations`.
 
 ## Local Data Compatibility Notes
 

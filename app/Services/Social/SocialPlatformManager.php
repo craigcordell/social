@@ -3,6 +3,7 @@
 namespace App\Services\Social;
 
 use App\Services\Social\Adapters\FacebookPageAdapter;
+use App\Services\Social\Adapters\GoogleBusinessProfileAdapter;
 use App\Services\Social\Adapters\InstagramBusinessAdapter;
 use App\Services\Social\Adapters\SocialPlatformAdapter;
 use InvalidArgumentException;
@@ -13,6 +14,7 @@ class SocialPlatformManager
     {
         return match ($provider) {
             'facebook' => app(FacebookPageAdapter::class),
+            'gmb' => app(GoogleBusinessProfileAdapter::class),
             'instagram' => app(InstagramBusinessAdapter::class),
             default => throw new InvalidArgumentException("Social provider [{$provider}] is not implemented."),
         };
@@ -23,7 +25,7 @@ class SocialPlatformManager
      */
     public function supportedProviders(): array
     {
-        return ['facebook', 'instagram'];
+        return ['facebook', 'gmb', 'instagram'];
     }
 
     public function supports(string $provider): bool

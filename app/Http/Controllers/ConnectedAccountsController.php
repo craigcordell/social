@@ -35,6 +35,12 @@ class ConnectedAccountsController extends Controller
                 'graph_version' => config('social.providers.instagram.graph_version'),
                 'scopes' => config('services.instagram.scopes', []),
             ],
+            'googleBusinessConfig' => [
+                'client_id' => config('services.google_business.client_id'),
+                'has_client_secret' => filled(config('services.google_business.client_secret')),
+                'redirect_uri' => config('services.google_business.redirect') ?: url('/oauth/google-business/callback'),
+                'scopes' => config('services.google_business.scopes', []),
+            ],
         ]);
     }
 

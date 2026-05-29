@@ -43,7 +43,11 @@ function ayrshareAccount(Owner $owner, string $provider = 'facebook'): Connected
         'owner_id' => $owner->id,
         'provider' => $provider,
         'provider_account_id' => "{$provider}-account-1",
-        'provider_account_type' => $provider === 'facebook' ? 'page' : 'instagram_business',
+        'provider_account_type' => match ($provider) {
+            'facebook' => 'page',
+            'gmb' => 'google_business_location',
+            default => 'instagram_business',
+        },
         'display_name' => ucfirst($provider),
         'access_token' => 'secret',
         'status' => ConnectedAccount::STATUS_ACTIVE,
@@ -112,6 +116,23 @@ it('requires an owner-bound bearer token for ayrshare-compatible routes', functi
         'platforms' => ['facebook'],
         'mediaUrls' => ['https://example.com/item.jpg'],
     ])->assertForbidden();
+});
+
+it('publishes gmb through the ayrshare-compatible post route', function (): void {
+    bindAyrshareCompatibilityManager(ayrshareFakeAdapter(), ['gmb']);
+
+    $owner = Owner::query()->create(['name' => 'Internal', 'type' => 'internal']);
+    ayrshareAccount($owner, 'gmb');
+
+    $this->withHeaders(ayrshareHeaders($owner))->postJson('/api/post', [
+        'post' => 'New item',
+        'platforms' => ['google_business_profile'],
+        'mediaUrls' => ['https://example.com/item.jpg'],
+    ])
+        ->assertOk()
+        ->assertJsonPath('status', 'success')
+        ->assertJsonPath('postIds.0.platform', 'gmb')
+        ->assertJsonPath('postIds.0.id', 'gmb-account-1_post-1');
 });
 
 it('publishes synchronously and returns an ayrshare-shaped success response', function (): void {
@@ -272,4 +293,69 @@ it('returns post and account analytics in the ayrshare-compatible shape', functi
         ->assertOk()
         ->assertJsonPath('facebook.analytics.followersCount', 10)
         ->assertJsonPath('errors.0.platform', 'pinterest');
+});
+
+it('aggregates google business social analytics across connected locations', function (): void {
+    bindAyrshareCompatibilityManager(new class implements SocialPlatformAdapter
+    {
+        public function publish(ConnectedAccount $account, SocialPost $post): array
+        {
+            return [
+                'provider_post_id' => $account->provider_account_id.'_post-1',
+                'provider_response' => [],
+            ];
+        }
+
+        public function delete(ConnectedAccount $account, SocialPostTarget $target): array
+        {
+            return ['success' => true];
+        }
+
+        public function comment(ConnectedAccount $account, SocialPostTarget $target, string $comment): array
+        {
+            return ['id' => 'comment-1'];
+        }
+
+        public function postAnalytics(ConnectedAccount $account, string $providerPostId): array
+        {
+            return ['id' => $providerPostId, 'analytics' => []];
+        }
+
+        public function accountAnalytics(ConnectedAccount $account): array
+        {
+            return [
+                'id' => $account->provider_account_id,
+                'name' => $account->display_name,
+                'callClicks' => $account->provider_account_id === 'gmb-account-1' ? 2 : 3,
+                'websiteClicks' => $account->provider_account_id === 'gmb-account-1' ? 4 : 5,
+                'businessDirectionRequests' => 1,
+                'businessImpressionsMobileMaps' => 10,
+                'businessImpressionsDesktopMaps' => 20,
+                'businessImpressionsMobileSearch' => 30,
+                'businessImpressionsDesktopSearch' => 40,
+            ];
+        }
+    }, ['gmb']);
+
+    $owner = Owner::query()->create(['name' => 'Internal', 'type' => 'internal']);
+    ayrshareAccount($owner, 'gmb');
+    ConnectedAccount::query()->create([
+        'owner_id' => $owner->id,
+        'provider' => 'gmb',
+        'provider_account_id' => 'gmb-account-2',
+        'provider_account_type' => 'google_business_location',
+        'display_name' => 'Second location',
+        'access_token' => 'secret',
+        'status' => ConnectedAccount::STATUS_ACTIVE,
+    ]);
+
+    $this->withHeaders(ayrshareHeaders($owner))->postJson('/api/analytics/social', [
+        'platforms' => ['gmb'],
+        'quarters' => 1,
+    ])
+        ->assertOk()
+        ->assertJsonPath('gmb.analytics.callClicks', 5)
+        ->assertJsonPath('gmb.analytics.websiteClicks', 9)
+        ->assertJsonPath('gmb.analytics.locations.0.id', 'gmb-account-1')
+        ->assertJsonPath('gmb.analytics.locations.1.id', 'gmb-account-2');
 });
