@@ -10,11 +10,11 @@ use Illuminate\Support\Facades\Http;
 use Laravel\Socialite\Facades\Socialite;
 use Laravel\Socialite\Two\User as SocialiteUser;
 
-it('redirects to facebook oauth with cached state and narrow scopes', function (): void {
+it('redirects to facebook oauth with cached state and ayrshare-compatible scopes', function (): void {
     config([
         'services.facebook.client_id' => 'app-123',
-        'services.facebook.redirect' => 'http://localhost:8000/oauth/facebook/callback',
-        'services.facebook.scopes' => ['pages_show_list', 'pages_read_engagement', 'pages_manage_posts'],
+        'services.facebook.redirect' => 'https://social.test/oauth/facebook/callback',
+        'services.facebook.scopes' => ['pages_show_list', 'pages_read_engagement', 'pages_manage_posts', 'pages_manage_engagement'],
         'services.facebook.login_config_id' => null,
     ]);
 
@@ -31,10 +31,11 @@ it('redirects to facebook oauth with cached state and narrow scopes', function (
 
     expect($location)->toStartWith('https://www.facebook.com/v23.0/dialog/oauth?')
         ->and($query['client_id'])->toBe('app-123')
-        ->and($query['redirect_uri'])->toBe('http://localhost:8000/oauth/facebook/callback')
+        ->and($query['redirect_uri'])->toBe('https://social.test/oauth/facebook/callback')
         ->and($query['response_type'])->toBe('code')
         ->and($query['auth_type'])->toBe('rerequest')
-        ->and($query['scope'])->toBe('pages_show_list,pages_read_engagement,pages_manage_posts')
+        ->and($query['scope'])->toBe('pages_show_list,pages_read_engagement,pages_manage_posts,pages_manage_engagement')
+        ->and($query['scope'])->not->toContain('pages_read_user_content')
         ->and($query['state'])->not->toBeEmpty();
 
     expect(Cache::get("facebook_oauth_state:{$query['state']}"))
