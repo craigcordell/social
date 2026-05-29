@@ -20,6 +20,7 @@ Implemented for Facebook Pages:
 - Create queued single-image posts from public image URLs.
 - Store Facebook `post_id` in `social_post_targets.provider_post_id`.
 - Delete posts created or recovered through this app.
+- Add comments to app-created posts for sold-item updates.
 - Track aggregate post status and per-target publish/delete status.
 
 Started for Instagram professional accounts:
@@ -27,11 +28,12 @@ Started for Instagram professional accounts:
 - Connect Instagram accounts with the Instagram Login OAuth flow.
 - Store Instagram access tokens encrypted in `connected_accounts`.
 - Publish queued single-image feed posts through a media container and publish step.
+- Add comments to app-created media for sold-item updates.
 - Mark deletes as `manual_delete_required` because Meta's Instagram media API does not currently support deleting published feed media.
 
 Google Business Profile support is still schema-only.
 
-See `PERMISSIONS.md` for the current Meta permission minimization plan. Round one should aim for Page publishing/deleting and organic Page status only.
+See `PERMISSIONS.md` for the current Meta permission minimization plan. Round one supports publishing, deleting where the provider allows it, organic status/analytics, and sold-item comments.
 
 ## Local Setup
 
@@ -68,8 +70,8 @@ QUEUE_CONNECTION=database
 
 FACEBOOK_CLIENT_ID=
 FACEBOOK_CLIENT_SECRET=
-FACEBOOK_REDIRECT_URI=http://localhost:8000/oauth/facebook/callback
-FACEBOOK_SCOPES=pages_show_list,pages_read_engagement,pages_manage_posts,pages_manage_engagement
+FACEBOOK_REDIRECT_URI=https://social.test/oauth/facebook/callback
+FACEBOOK_SCOPES=pages_show_list,pages_read_engagement,pages_manage_posts,pages_manage_engagement,pages_read_user_content
 FACEBOOK_GRAPH_VERSION=v25.0
 FACEBOOK_LOGIN_CONFIG_ID=
 
@@ -80,7 +82,7 @@ INSTAGRAM_SCOPES=instagram_business_basic,instagram_business_content_publish,ins
 INSTAGRAM_GRAPH_VERSION=v25.0
 ```
 
-For local Facebook OAuth, add `http://localhost:8000/oauth/facebook/callback` to the app's valid redirect URIs. The first working local flow used `business_management` to discover the CHM Page through the Business `owned_pages` edge, but the next permissions pass should try to remove that scope.
+For local Facebook OAuth, use Herd's secured local domain and add `https://social.test/oauth/facebook/callback` to the app's valid redirect URIs. `business_management` is not requested by the app; if Meta still reports it in `/me/permissions`, treat it as a previously granted Meta-side integration permission rather than part of this app's current scope request.
 
 For local Instagram OAuth, use Herd's secured local domain. Run `herd secure social` if needed, then add `https://social.test/oauth/instagram/callback` to the Instagram API with Instagram Login redirect URI settings. Start the connection flow from `https://social.test/connected-accounts` so Laravel's OAuth state session stays on the same host.
 

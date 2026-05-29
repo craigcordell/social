@@ -14,7 +14,7 @@ it('redirects to facebook oauth with cached state and ayrshare-compatible scopes
     config([
         'services.facebook.client_id' => 'app-123',
         'services.facebook.redirect' => 'https://social.test/oauth/facebook/callback',
-        'services.facebook.scopes' => ['pages_show_list', 'pages_read_engagement', 'pages_manage_posts', 'pages_manage_engagement'],
+        'services.facebook.scopes' => ['pages_show_list', 'pages_read_engagement', 'pages_manage_posts', 'pages_manage_engagement', 'pages_read_user_content'],
         'services.facebook.login_config_id' => null,
     ]);
 
@@ -34,17 +34,40 @@ it('redirects to facebook oauth with cached state and ayrshare-compatible scopes
         ->and($query['redirect_uri'])->toBe('https://social.test/oauth/facebook/callback')
         ->and($query['response_type'])->toBe('code')
         ->and($query['auth_type'])->toBe('rerequest')
-        ->and($query['scope'])->toBe('pages_show_list,pages_read_engagement,pages_manage_posts,pages_manage_engagement')
-        ->and($query['scope'])->not->toContain('pages_read_user_content')
+        ->and($query['scope'])->toBe('pages_show_list,pages_read_engagement,pages_manage_posts,pages_manage_engagement,pages_read_user_content')
         ->and($query['state'])->not->toBeEmpty();
 
     expect(Cache::get("facebook_oauth_state:{$query['state']}"))
         ->toBe(['owner_id' => (string) $owner->id]);
 });
 
+it('redirects to facebook oauth with a login configuration when configured', function (): void {
+    config([
+        'services.facebook.client_id' => 'app-123',
+        'services.facebook.redirect' => 'https://social.test/oauth/facebook/callback',
+        'services.facebook.scopes' => ['pages_show_list', 'pages_read_engagement', 'pages_manage_posts', 'pages_manage_engagement', 'pages_read_user_content'],
+        'services.facebook.login_config_id' => 'config-123',
+    ]);
+
+    $owner = Owner::query()->create(['name' => 'Internal', 'type' => 'internal']);
+
+    $response = $this
+        ->actingAs(User::factory()->create())
+        ->get(route('oauth.facebook.redirect', ['owner_id' => $owner->id]));
+
+    $response->assertRedirect();
+
+    $location = $response->headers->get('Location');
+    parse_str(parse_url($location, PHP_URL_QUERY), $query);
+
+    expect($query['config_id'])->toBe('config-123')
+        ->and($query['override_default_response_type'])->toBe('1')
+        ->and($query)->not->toHaveKey('scope');
+});
+
 it('stores a facebook page when the callback session is not present', function (): void {
     config([
-        'services.facebook.scopes' => ['pages_show_list', 'pages_read_engagement', 'pages_manage_posts'],
+        'services.facebook.scopes' => ['pages_show_list', 'pages_read_engagement', 'pages_manage_posts', 'pages_manage_engagement', 'pages_read_user_content'],
         'social.providers.facebook.graph_version' => 'v25.0',
     ]);
 
@@ -58,7 +81,7 @@ it('stores a facebook page when the callback session is not present', function (
         $user->id = 'facebook-user-1';
         $user->token = 'user-token';
         $user->expiresIn = null;
-        $user->approvedScopes = ['pages_show_list', 'pages_read_engagement', 'pages_manage_posts'];
+        $user->approvedScopes = ['pages_show_list', 'pages_read_engagement', 'pages_manage_posts', 'pages_manage_engagement', 'pages_read_user_content'];
     }));
 
     Socialite::shouldReceive('driver')->with('facebook')->once()->andReturn($provider);
@@ -69,6 +92,8 @@ it('stores a facebook page when the callback session is not present', function (
                 ['permission' => 'pages_show_list', 'status' => 'granted'],
                 ['permission' => 'pages_read_engagement', 'status' => 'granted'],
                 ['permission' => 'pages_manage_posts', 'status' => 'granted'],
+                ['permission' => 'pages_manage_engagement', 'status' => 'granted'],
+                ['permission' => 'pages_read_user_content', 'status' => 'granted'],
             ],
         ]),
         'graph.facebook.com/v25.0/me/accounts*' => Http::response([
@@ -94,7 +119,7 @@ it('stores a facebook page when the callback session is not present', function (
         ->and($account->provider_account_type)->toBe('page')
         ->and($account->display_name)->toBe('Clayton House Marketplace')
         ->and($account->access_token)->toBe('page-token')
-        ->and($account->scopes)->toBe(['pages_show_list', 'pages_read_engagement', 'pages_manage_posts']);
+        ->and($account->scopes)->toBe(['pages_show_list', 'pages_read_engagement', 'pages_manage_posts', 'pages_manage_engagement', 'pages_read_user_content']);
 
     expect(OAuthDebugAttempt::query()->where('provider', 'facebook')->where('status', 'connected')->exists())->toBeTrue();
 });

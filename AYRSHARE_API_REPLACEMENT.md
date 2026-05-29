@@ -199,6 +199,25 @@ The app supports an optional `platform`, but the current sold-item path does not
 
 For no-platform requests, the replacement should either comment on every supported platform post in the group or return a partial failure response that clearly identifies unsupported platforms.
 
+### Meta Permissions For Comments
+
+Facebook comments on app-created Page posts require:
+
+- `pages_show_list`
+- `pages_read_engagement`
+- `pages_manage_posts`
+- `pages_manage_engagement`
+- `pages_read_user_content`
+
+`pages_read_user_content` is included because Meta requires it when requesting Page comment management with `pages_manage_engagement`. Do not add `business_management` to the requested Facebook OAuth scopes for this workflow.
+
+Instagram comments on app-created media require:
+
+- `instagram_business_basic`
+- `instagram_business_content_publish`
+- `instagram_business_manage_insights`
+- `instagram_business_manage_comments`
+
 ## Get Post Info
 
 The service has a method for this endpoint:

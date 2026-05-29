@@ -39,7 +39,7 @@ return [
         'client_id' => env('FACEBOOK_CLIENT_ID'),
         'client_secret' => env('FACEBOOK_CLIENT_SECRET'),
         'redirect' => env('FACEBOOK_REDIRECT_URI'),
-        'scopes' => array_filter(array_map('trim', explode(',', env('FACEBOOK_SCOPES', 'pages_show_list,pages_read_engagement,pages_manage_posts,pages_manage_engagement')))),
+        'scopes' => array_filter(array_map('trim', explode(',', env('FACEBOOK_SCOPES', 'pages_show_list,pages_read_engagement,pages_manage_posts,pages_manage_engagement,pages_read_user_content')))),
         'login_config_id' => env('FACEBOOK_LOGIN_CONFIG_ID'),
     ],
 
