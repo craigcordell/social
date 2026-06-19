@@ -8,6 +8,10 @@ return new class extends Migration
 {
     public function up(): void
     {
+        if (Schema::hasTable('oauth_debug_attempts')) {
+            return;
+        }
+
         Schema::create('oauth_debug_attempts', function (Blueprint $table) {
             $table->id();
             $table->string('provider')->index();
