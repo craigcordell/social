@@ -1,7 +1,7 @@
 <?php
 
-test('returns a successful response', function () {
+test('home route is not publicly discoverable', function () {
     $response = $this->get(route('home'));
 
-    $response->assertOk();
+    $response->assertNotFound();
 });

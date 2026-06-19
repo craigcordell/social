@@ -9,7 +9,9 @@ use App\Http\Controllers\OAuth\InstagramOAuthController;
 use App\Http\Controllers\OwnersController;
 use Illuminate\Support\Facades\Route;
 
-Route::view('/', 'welcome')->name('home');
+Route::get('/', function () {
+    abort(404);
+})->name('home');
 
 Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('dashboard', DashboardController::class)->name('dashboard');
