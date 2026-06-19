@@ -2,6 +2,16 @@
 
 Internal Laravel app for social publishing. The MVP replaces the basic Ayrshare workflow for Clayton House Marketplace: external systems call an authenticated Ayrshare-shaped API, the app publishes synchronously for now, and connected platform post ids are stored locally for later deletion and analytics.
 
+## Production Status
+
+- Production site: `https://social.clayton.house`
+- Facebook, Instagram, and Google Business Profile are connected in production.
+- Production OAuth callbacks:
+  - Facebook: `https://social.clayton.house/oauth/facebook/callback`
+  - Instagram: `https://social.clayton.house/oauth/instagram/callback`
+  - Google Business Profile: `https://social.clayton.house/oauth/google-business/callback`
+- Public self-registration is disabled.
+
 ## Stack
 
 - Laravel 13 with the official Livewire starter kit

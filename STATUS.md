@@ -5,9 +5,16 @@ Last updated: June 19, 2026
 ## Working
 
 - Laravel 13 Livewire starter app is installed in `/Users/craigcordell/Herd/social`.
+- Production site is live at `https://social.clayton.house`.
+- Public registration is disabled; `/register` is not available and the root path is not intended as a public landing page.
 - Sanctum API authentication is installed and working.
 - The Ayrshare-compatible API publishes and deletes synchronously for now; queue job classes still exist for a later queue-backed path.
 - Internal owner model exists; current seeded owner is `Internal`.
+- Production OAuth callbacks are:
+  - Facebook: `https://social.clayton.house/oauth/facebook/callback`
+  - Instagram: `https://social.clayton.house/oauth/instagram/callback`
+  - Google Business Profile: `https://social.clayton.house/oauth/google-business/callback`
+- Facebook, Instagram, and Google Business are all connected in production.
 - Facebook OAuth can connect the Clayton House Marketplace Page.
 - Connected Facebook Page tokens are stored encrypted.
 - API-created Facebook image posts publish synchronously through the Ayrshare-compatible API.
@@ -38,6 +45,14 @@ Last updated: June 19, 2026
 - `POST /api/analytics/social` aggregates all active Google Business locations into one `gmb.analytics` block with per-location detail preserved.
 
 ## Verified Manually
+
+Production onboarding status:
+
+- Forge deployment for `social.clayton.house` completed successfully.
+- Production app config now uses HTTPS callbacks for Facebook, Instagram, and Google Business Profile.
+- Facebook connected successfully in production after adding the exact production callback URI to Meta's Facebook Login settings.
+- Instagram connected successfully in production after adding the exact production callback URI to the Instagram Business Login settings.
+- Google Business Profile connected successfully in production after adding the exact production callback URI to the Google OAuth client.
 
 Facebook Page connected successfully during early testing. The current target scope set intentionally excludes `business_management`; see `PERMISSIONS.md`.
 
