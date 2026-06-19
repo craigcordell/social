@@ -36,8 +36,21 @@ class CreateUser extends Command
 
         $plainTextPassword = $this->option('password') ?: password(
             label: 'Password',
-            confirm: true,
+            required: 'The password is required.',
         );
+
+        if (! $this->option('password')) {
+            $passwordConfirmation = password(
+                label: 'Confirm password',
+                required: 'The password confirmation is required.',
+            );
+
+            if ($plainTextPassword !== $passwordConfirmation) {
+                $this->components->error('The password confirmation does not match.');
+
+                return self::FAILURE;
+            }
+        }
 
         $user = $this->creator->create([
             'name' => $name,
