@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\ConnectedAccount;
 use App\Models\OAuthDebugAttempt;
 use App\Models\Owner;
+use Illuminate\Http\Client\RequestException;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
@@ -106,13 +107,26 @@ class GoogleBusinessOAuthController extends Controller
                 'status' => 'graph_responses_received',
                 'pages_response' => $this->sanitizePayload($rawResponses),
             ])->save();
+        } catch (RequestException $exception) {
+            $message = $this->googleRequestFailureMessage($exception);
+
+            $debugAttempt->forceFill([
+                'status' => 'failed',
+                'error_message' => $message,
+            ])->save();
+
+            return redirect()
+                ->route('connected-accounts.index')
+                ->with('warning', $message);
         } catch (Throwable $exception) {
             $debugAttempt->forceFill([
                 'status' => 'failed',
                 'error_message' => $exception->getMessage(),
             ])->save();
 
-            throw $exception;
+            return redirect()
+                ->route('connected-accounts.index')
+                ->with('warning', 'Google Business login could not finish. Check the OAuth debug record for the provider response.');
         }
 
         if ($locations === []) {
@@ -193,6 +207,15 @@ class GoogleBusinessOAuthController extends Controller
             ])
             ->throw()
             ->json();
+    }
+
+    protected function googleRequestFailureMessage(RequestException $exception): string
+    {
+        if ($exception->response->status() === 429) {
+            return 'Google Business login connected, but Google rate-limited the Business Profile account lookup. Check the My Business Account Management API quota; if it is 0, request Google Business Profile API access before trying again.';
+        }
+
+        return 'Google Business login connected, but Google rejected the Business Profile account lookup: '.$exception->response->body();
     }
 
     /**

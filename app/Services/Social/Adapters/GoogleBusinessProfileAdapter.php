@@ -49,7 +49,7 @@ class GoogleBusinessProfileAdapter implements SocialPlatformAdapter
         }
 
         $response = $this->google($account)
-            ->post($this->localPostsUrl($account->provider_account_id), $payload)
+            ->post($this->localPostsUrl($this->legacyLocationName($account)), $payload)
             ->throw()
             ->json();
 
@@ -245,6 +245,18 @@ class GoogleBusinessProfileAdapter implements SocialPlatformAdapter
     protected function localPostsUrl(string $locationName): string
     {
         return "https://mybusiness.googleapis.com/v4/{$locationName}/localPosts";
+    }
+
+    protected function legacyLocationName(ConnectedAccount $account): string
+    {
+        $locationName = $account->provider_account_id;
+        $accountName = data_get($account->metadata, 'account_name');
+
+        if (str_starts_with($locationName, 'locations/') && filled($accountName)) {
+            return "{$accountName}/{$locationName}";
+        }
+
+        return $locationName;
     }
 
     protected function postUrl(string $localPostName): string

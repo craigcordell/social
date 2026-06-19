@@ -16,7 +16,7 @@ Goal: request the smallest Meta permission set that supports the product. The ap
   - Vendors connect their own Facebook/Instagram accounts.
   - Vendors should not grant Clayton House broad control of their Business unless there is no narrower viable path.
 - Instagram:
-  - Set up if it can use the same Meta/Facebook connection screens.
+  - Uses Instagram Login with Instagram API scopes.
   - Target the most broadly compatible path for vendor Business/Creator accounts.
   - Round one is feed-image publishing, media analytics, and sold-item comments on app-created media.
   - Ayrshare-compatible post analytics requires media insights.

@@ -1,23 +1,23 @@
 # Status
 
-Last updated: May 29, 2026
+Last updated: June 19, 2026
 
 ## Working
 
 - Laravel 13 Livewire starter app is installed in `/Users/craigcordell/Herd/social`.
 - Sanctum API authentication is installed and working.
-- Database queues are configured and used for social publish/delete work.
+- The Ayrshare-compatible API publishes and deletes synchronously for now; queue job classes still exist for a later queue-backed path.
 - Internal owner model exists; current seeded owner is `Internal`.
 - Facebook OAuth can connect the Clayton House Marketplace Page.
 - Connected Facebook Page tokens are stored encrypted.
-- API-created Facebook image posts publish through the `social-publish` queue.
+- API-created Facebook image posts publish synchronously through the Ayrshare-compatible API.
 - Facebook `post_id` is stored locally in `social_post_targets.provider_post_id`.
-- API deletes queue through `social-delete` and delete Facebook posts by stored `provider_post_id`.
+- API deletes run synchronously and delete Facebook posts by stored `provider_post_id`.
 - OAuth debug callback records are saved and shown on the connections page.
 - Admin UI exists for dashboard, owners, connections, API tokens, and posts.
 - API tokens are assigned to an owner; Ayrshare-compatible calls use that owner as the source of truth for platform targets.
 - Ayrshare-compatible endpoints exist for publish, delete, comments, post analytics, account analytics, and post lookup.
-- Synchronous Ayrshare-compatible publishing returns per-platform `postIds`, durable `provider_post_url` values, and partial failures for unsupported or unlinked platforms.
+- Synchronous Ayrshare-compatible publishing/deleting returns per-platform `postIds`, durable `provider_post_url` values, and partial failures for unsupported, unsupported-action, or unlinked platforms.
 - The public API is now only the Ayrshare-shaped contract; the older `/api/posts` owner/target-id syntax has been removed.
 - Instagram OAuth redirect/callback routes are implemented for Instagram Login.
 - Instagram connected accounts can be saved with encrypted access tokens.
@@ -27,14 +27,19 @@ Last updated: May 29, 2026
 - Herd is serving `https://social.test` with PHP 8.4 for this project.
 - Instagram account `claytonhousemarketplace` connected successfully as `connected_accounts.id = 3`.
 - Google Business Profile OAuth redirect/callback routes are implemented at `/oauth/google-business/redirect` and `/oauth/google-business/callback`.
+- Google Cloud rejects `.test` redirect URIs; the local Google Business OAuth client uses `http://localhost:8000/oauth/google-business/callback`.
+- Google approved Business Profile API access for project `gmb-api-1966` under case `0-7599000041303` on June 19, 2026.
+- The required Google services are enabled: `mybusiness.googleapis.com`, `mybusinessaccountmanagement.googleapis.com`, `mybusinessbusinessinformation.googleapis.com`, and `businessprofileperformance.googleapis.com`.
 - Google Business OAuth saves every returned location as an active `gmb` connected account using the existing `connected_accounts` table.
+- Google Business location `Clayton House` connected successfully as `connected_accounts.id = 4`.
 - Google Business local post publish, delete, post analytics, and account analytics are implemented in `GoogleBusinessProfileAdapter`.
+- The Google adapter qualifies Business Information v1 `locations/{locationId}` names with the saved account name before calling Local Posts v4.
 - `POST /api/post` accepts `gmb`, `google_business`, and `google_business_profile` and publishes synchronously through connected Google locations.
 - `POST /api/analytics/social` aggregates all active Google Business locations into one `gmb.analytics` block with per-location detail preserved.
 
 ## Verified Manually
 
-Facebook Page connected successfully after adding `business_management`.
+Facebook Page connected successfully during early testing. The current target scope set intentionally excludes `business_management`; see `PERMISSIONS.md`.
 
 Post/redelete smoke tests after narrowing OAuth and Page discovery:
 
@@ -60,7 +65,7 @@ Two sample posts were created during testing:
   - Facebook media id: `1400358605449312`
   - Final local status: `deleted`
 
-Both were confirmed visible on Facebook before deletion. Both were deleted through the API delete path and queue worker.
+Both were confirmed visible on Facebook before deletion. Both were deleted through the API delete path used at the time.
 
 Instagram publish smoke test:
 
@@ -72,6 +77,16 @@ Instagram publish smoke test:
   - Delete attempt through the API was recorded locally, but Meta rejected `DELETE /18082816811438704` with `Unsupported delete request`.
   - The app now treats Instagram deletes as terminal `manual_delete_required`, not retryable failures.
   - Local target `social_post_targets.id = 6` has `delete_status = manual_delete_required` and `delete_attempts = 1`.
+
+Google Business Profile publish/delete smoke test:
+
+- `social_posts.id = 9`, `social_post_targets.id = 9`
+  - Published to the connected `Clayton House` location through `PublishSocialPostTarget`.
+  - Google local post id: `accounts/104922938822827779112/locations/10127574727985402861/localPosts/7803388860251743833`.
+  - Google returned the post as `LIVE` after initial processing.
+  - Deleted through `DeleteSocialPostTarget`.
+  - Final local post and target delete status: `deleted`.
+  - A read-after-delete request to Google returned `404`, confirming removal.
 
 ## Important Finding
 
@@ -87,7 +102,7 @@ Mitigation already applied:
 
 - Facebook photo publish requests now use form-encoded parameters instead of JSON.
 - The duplicate was recovered by reading the Page `posts` edge and adding a local record with the real Facebook `post_id`.
-- Facebook photo publish now attempts automatic reconciliation after a 5xx Graph API response by checking the Page's recent `/posts` feed for an exact message match before the queue retries.
+- Facebook photo publish now attempts automatic reconciliation after a 5xx Graph API response by checking the Page's recent `/posts` feed for an exact message match before the caller retries.
 
 Still needed:
 
@@ -95,23 +110,24 @@ Still needed:
 
 ## Current Facebook Notes
 
-- Local callback URL: `http://localhost:8000/oauth/facebook/callback`
+- Local callback URL: `https://social.test/oauth/facebook/callback`
 - Graph version: `v25.0`
-- Scopes that worked during first local OAuth:
+- Scopes used for the current narrow local OAuth target:
   - `pages_show_list`
   - `pages_read_engagement`
   - `pages_manage_posts`
-  - `business_management`
+  - `pages_manage_engagement`
+  - `pages_read_user_content`
 
-The `business_management` permission produced stronger Meta consent warnings. It should be treated as a temporary discovery workaround, not a round-one default. See `PERMISSIONS.md` for the permission minimization plan.
+The `business_management` permission produced stronger Meta consent warnings during early testing. It should be treated as a previous discovery workaround, not a round-one default. See `PERMISSIONS.md` for the permission minimization plan.
 
-The Ayrshare-compatible API now needs Page engagement permission for sold-item comments. The local `.env` scope request should be:
+The local `.env` scope request should be:
 
 ```dotenv
-FACEBOOK_SCOPES=pages_show_list,pages_read_engagement,pages_manage_posts,pages_manage_engagement
+FACEBOOK_SCOPES=pages_show_list,pages_read_engagement,pages_manage_posts,pages_manage_engagement,pages_read_user_content
 ```
 
-Meta's broad Page use case still shows `business_management` as ready for testing and did not expose a remove action from the permission table. Keep it out of our OAuth request and retest before assuming it is truly required.
+Meta's broad Page use case still showed `business_management` as ready for testing and did not expose a remove action from the permission table. Keep it out of our OAuth request unless Page discovery/token minting proves it is required.
 
 The callback now discovers Facebook Pages only through `/me/accounts`. It no longer calls `/me/assigned_pages`, `/me/businesses`, `owned_pages`, or `client_pages` during the normal connection path.
 
@@ -124,7 +140,7 @@ The callback now discovers Facebook Pages only through `/me/accounts`. It no lon
   - app adds sold-item comments to posts it created,
   - app reads organic post status/engagement.
 - Vendors later connect their own accounts.
-- Instagram feed-image publishing can be set up in round one or 1.5 if it uses the same practical Meta connection flow.
+- Instagram feed-image publishing uses Instagram Login with Instagram API scopes.
 - Catalog API is phase 2 or 3.
 - Boosting/ads are phase 2.
 - Paid stats come with the ads phase; organic status/engagement is round one.
@@ -133,17 +149,17 @@ The callback now discovers Facebook Pages only through `/me/accounts`. It no lon
 - Instagram messages, shopping, and legacy Page-linked Instagram publishing permissions are intentionally not enabled for round one.
 - Instagram delete is not implemented with the current permission set.
 - Instagram local connection testing should start from `https://social.test/connected-accounts`, not `localhost:8000`, so the OAuth state cookie and callback host match.
+- Local callback host tracking: Facebook and Instagram use `https://social.test`; Google Business Profile uses `http://localhost:8000` because Google rejects `.test` redirect URIs.
 
 Target Facebook scopes to test next:
 
 ```dotenv
-FACEBOOK_SCOPES=pages_show_list,pages_read_engagement,pages_manage_posts,pages_manage_engagement
+FACEBOOK_SCOPES=pages_show_list,pages_read_engagement,pages_manage_posts,pages_manage_engagement,pages_read_user_content
 ```
 
 Avoid round-one requests for:
 
 - `business_management`, unless Page selection/token minting still requires it.
-- `pages_read_user_content`.
 - `publish_video`.
 - `catalog_management`.
 - `ads_read`.
@@ -256,6 +272,18 @@ Last targeted result:
 16 tests passed, 86 assertions
 ```
 
+After normalizing Business Information v1 location names for Local Posts v4:
+
+```bash
+php artisan test --compact tests/Feature/Social/GoogleBusinessProfileAdapterTest.php --filter='publishes a standard google business local post'
+```
+
+Last targeted result:
+
+```text
+1 test passed, 3 assertions
+```
+
 Last full result:
 
 ```text
@@ -264,14 +292,13 @@ Last full result:
 
 ## Next Steps
 
-1. Retest Facebook OAuth with `pages_show_list,pages_read_engagement,pages_manage_posts,pages_manage_engagement`.
+1. Retest Facebook OAuth with `pages_show_list,pages_read_engagement,pages_manage_posts,pages_manage_engagement,pages_read_user_content`.
 2. In Meta use-case settings, enable only the Page permissions needed for Page selection, Page organic read, Page post management, and sold-item comments.
 3. Confirm new OAuth debug records only show the `/me/accounts` page discovery response.
 4. Manually confirm `social_posts.id = 7` is visible on Instagram.
 5. Manually smoke test the `/api/post` flow with the real POS2024 bearer token after creating an owner-bound token.
-6. Configure and manually test Google Business OAuth with a real Google Cloud OAuth client and a Google user that manages the Business Profile.
-7. Adjust Google Business metric names if the first production Performance API response reports an unavailable metric for the connected profile.
-8. Add reconciliation for ambiguous Facebook publish failures across the synchronous compatibility path if manual testing exposes duplicate risk.
-9. Decide whether scheduled posts are owned entirely here or triggered by the upstream website scheduler.
-10. Prepare narrow Meta App Review explanations from `PERMISSIONS.md`.
-11. Add production queue monitoring later if database queues become hard to inspect.
+6. Adjust Google Business metric names if the first production Performance API response reports an unavailable metric for the connected profile.
+7. Add reconciliation for ambiguous Facebook publish failures across the synchronous compatibility path if manual testing exposes duplicate risk.
+8. Decide whether scheduled posts are owned entirely here or triggered by the upstream website scheduler.
+9. Prepare narrow Meta App Review explanations from `PERMISSIONS.md`.
+10. Add production queue monitoring later only if the API moves back to queued publish/delete work.

@@ -122,3 +122,44 @@ it('redirects with a debug record when google business callback state is invalid
     expect($debugAttempt->status)->toBe('invalid_state')
         ->and($debugAttempt->error_message)->toContain('state');
 });
+
+it('redirects with a warning when google business account discovery is rate limited', function (): void {
+    config([
+        'services.google_business.client_id' => 'google-client-123',
+        'services.google_business.client_secret' => 'google-secret-123',
+        'services.google_business.redirect' => 'https://social.test/oauth/google-business/callback',
+        'services.google_business.scopes' => ['https://www.googleapis.com/auth/business.manage'],
+    ]);
+
+    Http::fake([
+        'oauth2.googleapis.com/token' => Http::response([
+            'access_token' => 'google-access-token',
+            'refresh_token' => 'google-refresh-token',
+            'expires_in' => 3600,
+            'scope' => 'https://www.googleapis.com/auth/business.manage',
+            'token_type' => 'Bearer',
+        ]),
+        'mybusinessaccountmanagement.googleapis.com/v1/accounts' => Http::response([
+            'error' => [
+                'code' => 429,
+                'message' => 'Quota exceeded for quota metric Requests.',
+            ],
+        ], 429),
+    ]);
+
+    $owner = Owner::query()->create(['name' => 'Internal', 'type' => 'internal']);
+
+    $this->actingAs(User::factory()->create())
+        ->withSession([
+            'google_business_oauth_owner_id' => $owner->id,
+            'google_business_oauth_state' => 'state-123',
+        ])
+        ->get(route('oauth.google-business.callback', ['code' => 'auth-code', 'state' => 'state-123']))
+        ->assertRedirect(route('connected-accounts.index'))
+        ->assertSessionHas('warning', 'Google Business login connected, but Google rate-limited the Business Profile account lookup. Check the My Business Account Management API quota; if it is 0, request Google Business Profile API access before trying again.');
+
+    $debugAttempt = OAuthDebugAttempt::query()->where('provider', 'gmb')->latest()->firstOrFail();
+
+    expect($debugAttempt->status)->toBe('failed')
+        ->and($debugAttempt->error_message)->toContain('rate-limited');
+});

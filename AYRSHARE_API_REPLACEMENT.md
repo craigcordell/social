@@ -1,10 +1,10 @@
 # Ayrshare API Replacement Contract
 
-This project currently treats Ayrshare as the social posting provider. A low-change replacement should preserve the Ayrshare-shaped HTTP contract and response JSON so the existing `AyrshareService` callers can keep working with minimal app changes.
+This project implements the Ayrshare-shaped HTTP contract that the existing POS2024 `AyrshareService` callers expect. The goal is a low-change replacement: preserve request/response JSON, make the provider base URL configurable upstream, and let this app own provider-specific adapters.
 
 ## Goal
 
-Build a drop-in API replacement that supports:
+Maintain a drop-in API replacement that supports:
 
 - Publishing social posts with optional images.
 - Returning per-platform native post IDs and public URLs.
@@ -13,7 +13,7 @@ Build a drop-in API replacement that supports:
 - Capturing post-level social stats for popularity scoring.
 - Capturing account-level social stats for reporting.
 
-The smallest application-side change should be making the provider base URL configurable. The current service hard-codes `https://api.ayrshare.com/api` in `app/Services/AyrshareService.php`.
+The smallest POS2024-side change should be making the provider base URL configurable. The current service hard-codes `https://api.ayrshare.com/api` in `app/Services/AyrshareService.php`.
 
 ## Authentication
 
@@ -25,7 +25,7 @@ Accept: application/json
 Content-Type: application/json
 ```
 
-The replacement should accept the same bearer-token style authentication so the app can continue using `config('services.ayrshare.api_key')`.
+This app accepts the same bearer-token style authentication so upstream callers can continue using `config('services.ayrshare.api_key')`.
 
 In this Laravel app, each bearer token is assigned to exactly one local `owners` row. The token owner is the source of truth for eligible connected platform accounts; publish requests do not include `owner_id` or platform account IDs.
 
@@ -69,10 +69,10 @@ POST /api/post
 
 ### Request Notes
 
-- `platforms` may include `facebook`, `instagram`, `twitter`, `pinterest`, and `gmb`.
+- `platforms` may include `facebook`, `instagram`, and `gmb` today. `twitter`/`x` and `pinterest` are accepted as request values but currently return Ayrshare-shaped partial failures because adapters are not implemented.
 - `google_business` and `google_business_profile` are accepted as aliases and normalize to `gmb`.
-- If `twitter` is included, the app adds `twitterOptions.longPost = true`.
-- If `pinterest` is included for item posts, the app sends `pinterestOptions.link`.
+- If `twitter` is included upstream, POS2024 may add `twitterOptions.longPost = true`; this API currently returns a partial failure for Twitter.
+- If `pinterest` is included upstream for item posts, POS2024 may send `pinterestOptions.link`; this API stores that link as the post `link_url` and currently returns a partial failure for Pinterest. Google uses the same link as a `LEARN_MORE` CTA when present.
 - `mediaUrls` is always sent as an array and may contain a nullable/empty value depending on whether the local post has an image.
 - Current posts are image/post text workflows. Video, reels, stories, threads, and scheduling are not used by this app.
 
@@ -101,17 +101,9 @@ The replacement stores the canonical post request in `social_posts` and stores e
       "postUrl": "https://www.instagram.com/p/DYUuDJDFSQp/"
     },
     {
-      "id": "538039486758479120",
-      "platform": "pinterest",
-      "status": "success",
-      "postUrl": "https://www.pinterest.com/pin/538039486758479120/"
-    },
-    {
-      "id": "6502751811401751421",
+      "id": "accounts/123/locations/456/localPosts/789",
       "platform": "gmb",
       "status": "success",
-      "type": "localPosts",
-      "mediaFormat": "photo",
       "postUrl": "https://local.google.com/place?id=..."
     }
   ],
@@ -122,7 +114,7 @@ The replacement stores the canonical post request in `social_posts` and stores e
 
 ### Partial Failure Response
 
-Ayrshare can return `status: "error"` even when some platforms succeed. The replacement should preserve this behavior because the app still displays successful `postIds`.
+Ayrshare can return `status: "error"` even when some platforms succeed. This API preserves that behavior because the app still displays successful `postIds`.
 
 ```json
 {
@@ -150,7 +142,7 @@ Ayrshare can return `status: "error"` even when some platforms succeed. The repl
 }
 ```
 
-Allowed `status` values should stay compatible with `App\Enums\PostStatus`: `success`, `error`, and `pending`.
+Allowed response `status` values stay compatible with the existing Ayrshare callers: `success` and `error` in the current synchronous path.
 
 ## Delete Post
 
@@ -200,7 +192,7 @@ The app supports an optional `platform`, but the current sold-item path does not
 }
 ```
 
-For no-platform requests, the replacement should either comment on every supported platform post in the group or return a partial failure response that clearly identifies unsupported platforms.
+For no-platform requests, this API comments on every supported published platform target in the group or returns a partial failure response that clearly identifies unsupported platforms.
 
 ### Meta Permissions For Comments
 
@@ -233,7 +225,7 @@ Returns the stored Ayrshare-shaped group post response for a local `social_posts
 
 ## Post Analytics
 
-Used by `UpdateSocialMediaLikesJob`, although that job currently returns early because Ayrshare rate limits made the path unusable.
+Intended for the upstream popularity-scoring path that previously used Ayrshare post analytics.
 
 ### Request For Provider-Created Post
 
@@ -261,7 +253,7 @@ POST /api/analytics/post
 
 ### Response Shape
 
-The app stores the full JSON in `posts.stats_response` and reads these exact paths:
+The upstream app stores the full JSON in `posts.stats_response` and historically reads these paths. This API currently implements Facebook, Instagram, and Google Business Profile; Twitter and Pinterest remain contract placeholders until adapters exist.
 
 - `facebook.analytics.likeCount`
 - `facebook.analytics.sharesCount`
@@ -331,7 +323,7 @@ Minimum compatible response:
 
 ## Account-Level Social Analytics
 
-Used by `CaptureSocialStatsJob`, scheduled daily in production.
+Intended for the upstream account-level stats path.
 
 ```http
 POST /api/analytics/social
@@ -344,7 +336,7 @@ POST /api/analytics/social
 }
 ```
 
-The app expects a top-level key per platform, each with an `analytics` object. It stores only the nested `analytics` object in `social_stats.stats`.
+The upstream app expects a top-level key per requested platform, each with an `analytics` object. It stores only the nested `analytics` object in `social_stats.stats`. This API currently returns implemented analytics for Facebook, Instagram, and Google Business Profile; unsupported platforms return partial failures.
 
 Minimum compatible response:
 
@@ -418,11 +410,11 @@ Local database evidence showed:
 
 ## Operational Recommendation
 
-The replacement API should own platform-specific rate limiting, retries, and analytics caching. The app currently has an hourly post-stats dispatcher, but the actual stats update job is disabled because Ayrshare rate limits shut it down. If the replacement API caches stats by provider group ID and refreshes internally, this app can eventually re-enable popularity scoring without sending too many direct social API requests.
+This API should own platform-specific rate limiting, retries, and analytics caching as those needs become real. Publishing/deleting is synchronous today; queue-backed retries can be reintroduced later using the existing job classes if provider latency or retry behavior requires it.
 
 ## Minimal App Change Later
 
-When ready to point this app at the replacement API, make the base URL configurable while preserving the existing service methods and response shape:
+When ready to point POS2024 at this replacement API, make the base URL configurable while preserving the existing service methods and response shape:
 
 ```php
 protected $baseUrl;
@@ -434,4 +426,4 @@ public function __construct()
 }
 ```
 
-Then add `AYRSHARE_BASE_URL` to `config/services.php`. No caller should need to change if the replacement preserves the contract above.
+Then add `AYRSHARE_BASE_URL` to POS2024 `config/services.php`. No caller should need to change if the replacement preserves the contract above.

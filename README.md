@@ -1,6 +1,6 @@
 # Social Publishing API
 
-Internal Laravel app for queued social publishing. The MVP replaces the basic Ayrshare workflow for Clayton House Marketplace: external systems call an authenticated API, the app queues provider jobs, and connected platform post ids are stored locally for later deletion.
+Internal Laravel app for social publishing. The MVP replaces the basic Ayrshare workflow for Clayton House Marketplace: external systems call an authenticated Ayrshare-shaped API, the app publishes synchronously for now, and connected platform post ids are stored locally for later deletion and analytics.
 
 ## Stack
 
@@ -8,7 +8,7 @@ Internal Laravel app for queued social publishing. The MVP replaces the basic Ay
 - Livewire/Flux admin UI
 - Sanctum personal access tokens for API callers
 - Socialite plus direct Graph API calls for OAuth/provider work
-- Database queues for publish/delete jobs
+- Synchronous Ayrshare-compatible publish/delete API; queued job classes remain available for a later queue-backed path
 - Pest test suite
 
 ## Current Scope
@@ -17,7 +17,7 @@ Implemented for Facebook Pages:
 
 - Connect Facebook Pages with OAuth.
 - Store Page access tokens encrypted in `connected_accounts`.
-- Create queued single-image posts from public image URLs.
+- Create single-image posts from public image URLs.
 - Store Facebook `post_id` in `social_post_targets.provider_post_id`.
 - Delete posts created or recovered through this app.
 - Add comments to app-created posts for sold-item updates.
@@ -27,7 +27,7 @@ Implemented for Instagram professional accounts:
 
 - Connect Instagram accounts with the Instagram Login OAuth flow.
 - Store Instagram access tokens encrypted in `connected_accounts`.
-- Publish queued single-image feed posts through a media container and publish step.
+- Publish single-image feed posts through a media container and publish step.
 - Add comments to app-created media for sold-item updates.
 - Mark deletes as `manual_delete_required` because Meta's Instagram media API does not currently support deleting published feed media.
 
@@ -57,7 +57,7 @@ Run the full local stack:
 composer dev
 ```
 
-That starts Laravel, Vite, logs, and a database queue listener for:
+That starts Laravel, Vite, logs, and a database queue listener. The current Ayrshare-compatible API publishes synchronously, but the listener is still useful for any job-backed paths:
 
 - `social-publish`
 - `social-delete`
@@ -90,15 +90,25 @@ INSTAGRAM_GRAPH_VERSION=v25.0
 
 GOOGLE_BUSINESS_CLIENT_ID=
 GOOGLE_BUSINESS_CLIENT_SECRET=
-GOOGLE_BUSINESS_REDIRECT_URI=https://social.test/oauth/google-business/callback
+GOOGLE_BUSINESS_REDIRECT_URI=http://localhost:8000/oauth/google-business/callback
 GOOGLE_BUSINESS_SCOPES=https://www.googleapis.com/auth/business.manage
 ```
 
-For local Facebook OAuth, use Herd's secured local domain and add `https://social.test/oauth/facebook/callback` to the app's valid redirect URIs. `business_management` is not requested by the app; if Meta still reports it in `/me/permissions`, treat it as a previously granted Meta-side integration permission rather than part of this app's current scope request.
+Local OAuth callback hosts:
+
+| Platform | Local callback host | Notes |
+| --- | --- | --- |
+| Facebook | `https://social.test` | Meta accepts the secured Herd `.test` callback. |
+| Instagram | `https://social.test` | Meta accepts the secured Herd `.test` callback. |
+| Google Business Profile | `http://localhost:8000` | Google rejects `.test` redirect URIs; the local OAuth client must use `http://localhost:8000/oauth/google-business/callback`. |
+
+For local Facebook OAuth, use Herd's secured local domain and add `https://social.test/oauth/facebook/callback` to the app's valid redirect URIs. `business_management` is not requested by the app; if Meta still reports it in `/me/permissions`, treat it as a previously granted Meta-side integration permission rather than part of this app's current scope request. Facebook sold-item comments require `pages_manage_engagement`; Meta currently also requires `pages_read_user_content` when requesting that comment-management capability.
 
 For local Instagram OAuth, use Herd's secured local domain. Run `herd secure social` if needed, then add `https://social.test/oauth/instagram/callback` to the Instagram API with Instagram Login redirect URI settings. Start the connection flow from `https://social.test/connected-accounts` so Laravel's OAuth state session stays on the same host.
 
-For local Google Business OAuth, create or choose a Google Cloud project, enable the Google Business Profile / My Business API, Business Profile Account Management API, Business Profile Business Information API, and Business Profile Performance API. Configure the OAuth consent screen with the `https://www.googleapis.com/auth/business.manage` scope, add local test users that manage the Business Profile, then create a Web application OAuth client with `https://social.test/oauth/google-business/callback` as an authorized redirect URI. Start the connection flow from `https://social.test/connected-accounts`.
+For local Google Business OAuth, create or choose a Google Cloud project and enable `mybusiness.googleapis.com`, `mybusinessaccountmanagement.googleapis.com`, `mybusinessbusinessinformation.googleapis.com`, and `businessprofileperformance.googleapis.com`. Configure the OAuth consent screen with the `https://www.googleapis.com/auth/business.manage` scope, add local test users that manage the Business Profile, then create a Web application OAuth client with `http://localhost:8000/oauth/google-business/callback` as an authorized redirect URI. Start the connection flow from the same host configured in `GOOGLE_BUSINESS_REDIRECT_URI` so Laravel's OAuth state session stays on the same host. If the My Business Account Management API quota is `0` requests per minute after enabling the API, request Google Business Profile API access before testing the callback.
+
+Google approved project `gmb-api-1966` under support case `0-7599000041303` on June 19, 2026. Account discovery returns Business Information v1 names such as `locations/{locationId}`; the adapter combines that value with the saved `metadata.account_name` when calling the legacy Local Posts v4 endpoint, which requires `accounts/{accountId}/locations/{locationId}`.
 
 ## Admin UI
 

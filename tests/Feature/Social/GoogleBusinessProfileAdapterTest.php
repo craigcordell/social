@@ -16,7 +16,10 @@ it('publishes a standard google business local post with photo media and optiona
     ]);
 
     $owner = Owner::query()->create(['name' => 'Internal', 'type' => 'internal']);
-    $account = googleBusinessAccount($owner);
+    $account = googleBusinessAccount($owner, [
+        'provider_account_id' => 'locations/456',
+        'metadata' => ['account_name' => 'accounts/123'],
+    ]);
     $post = SocialPost::query()->create([
         'owner_id' => $owner->id,
         'caption' => 'New item',
