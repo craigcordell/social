@@ -6,8 +6,10 @@ use App\Models\ConnectedAccount;
 use App\Models\SocialPost;
 use App\Models\SocialPostTarget;
 use Illuminate\Http\Client\PendingRequest;
+use Illuminate\Http\Client\RequestException;
 use Illuminate\Support\Facades\Http;
 use RuntimeException;
+use Throwable;
 
 class InstagramBusinessAdapter implements SocialPlatformAdapter
 {
@@ -24,6 +26,10 @@ class InstagramBusinessAdapter implements SocialPlatformAdapter
         $containerStatus = $this->waitForContainer($account, $container['id']);
 
         $published = $this->graph($account)
+            ->retry([2_000, 4_000], when: static fn (Throwable $exception): bool => $exception instanceof RequestException
+                && $exception->response->status() === 400
+                && $exception->response->json('error.code') === 9007
+                && $exception->response->json('error.error_subcode') === 2207027)
             ->post($this->endpoint($account->provider_account_id.'/media_publish'), [
                 'creation_id' => $container['id'],
             ])

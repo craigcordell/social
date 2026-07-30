@@ -5,7 +5,9 @@ use App\Models\Owner;
 use App\Models\SocialPost;
 use App\Models\SocialPostTarget;
 use App\Services\Social\Adapters\InstagramBusinessAdapter;
+use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Sleep;
 
 it('publishes an instagram feed image through a media container', function (): void {
     Http::fake([
@@ -105,6 +107,66 @@ it('waits for instagram media containers before publishing', function (): void {
         ->and($result['provider_response']['container_status']['status_code'])->toBe('FINISHED');
 
     Http::assertSentCount(5);
+});
+
+it('retries publishing the same instagram container when meta says the media is not ready', function (): void {
+    Sleep::fake();
+
+    Http::fake([
+        'graph.instagram.com/v25.0/ig-user-1/media' => Http::response([
+            'id' => 'container-1',
+        ]),
+        'graph.instagram.com/v25.0/container-1*' => Http::response([
+            'status_code' => 'FINISHED',
+        ]),
+        'graph.instagram.com/v25.0/ig-user-1/media_publish' => Http::sequence()
+            ->push([
+                'error' => [
+                    'message' => 'Media ID is not available',
+                    'type' => 'OAuthException',
+                    'code' => 9007,
+                    'error_subcode' => 2207027,
+                ],
+            ], 400)
+            ->push(['id' => 'ig-media-1']),
+        'graph.instagram.com/v25.0/ig-media-1*' => Http::response([
+            'id' => 'ig-media-1',
+            'permalink' => 'https://www.instagram.com/p/example/',
+            'like_count' => 0,
+            'comments_count' => 0,
+        ]),
+    ]);
+
+    $owner = Owner::query()->create(['name' => 'Internal', 'type' => 'internal']);
+    $account = ConnectedAccount::query()->create([
+        'owner_id' => $owner->id,
+        'provider' => 'instagram',
+        'provider_account_id' => 'ig-user-1',
+        'provider_account_type' => 'instagram_business',
+        'display_name' => 'Clayton House Instagram',
+        'access_token' => 'ig-token',
+        'status' => ConnectedAccount::STATUS_ACTIVE,
+    ]);
+    $post = SocialPost::query()->create([
+        'owner_id' => $owner->id,
+        'caption' => 'New item',
+        'image_url' => 'https://example.com/item.jpg',
+        'status' => SocialPost::STATUS_QUEUED,
+    ]);
+
+    $result = app(InstagramBusinessAdapter::class)->publish($account, $post);
+
+    expect($result['provider_post_id'])->toBe('ig-media-1')
+        ->and($result['provider_media_id'])->toBe('container-1')
+        ->and(Http::recorded(
+            fn (Request $request): bool => $request->url() === 'https://graph.instagram.com/v25.0/ig-user-1/media',
+        ))->toHaveCount(1)
+        ->and(Http::recorded(
+            fn (Request $request): bool => $request->url() === 'https://graph.instagram.com/v25.0/ig-user-1/media_publish'
+                && $request->data()['creation_id'] === 'container-1',
+        ))->toHaveCount(2);
+
+    Sleep::assertSleptTimes(1);
 });
 
 it('marks instagram media deletes as manual delete required', function (): void {
