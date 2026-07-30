@@ -34,9 +34,21 @@ test('posts identify social sites and use the configured application name', func
     ]);
 
     collect([
-        ['provider' => 'facebook', 'display_name' => 'Clayton House Marketplace'],
-        ['provider' => 'instagram', 'display_name' => 'claytonhousemarketplace'],
-        ['provider' => 'gmb', 'display_name' => 'Clayton House'],
+        [
+            'provider' => 'facebook',
+            'display_name' => 'Clayton House Marketplace',
+            'post_url' => 'https://www.facebook.com/example-post',
+        ],
+        [
+            'provider' => 'instagram',
+            'display_name' => 'claytonhousemarketplace',
+            'post_url' => 'https://www.instagram.com/p/example/',
+        ],
+        [
+            'provider' => 'gmb',
+            'display_name' => 'Clayton House',
+            'post_url' => 'https://local.google.com/place?id=example',
+        ],
     ])->each(function (array $accountData) use ($owner, $post): void {
         $account = ConnectedAccount::query()->create([
             'owner_id' => $owner->id,
@@ -50,6 +62,7 @@ test('posts identify social sites and use the configured application name', func
             'connected_account_id' => $account->id,
             'provider' => $accountData['provider'],
             'publish_status' => SocialPostTarget::PUBLISH_STATUS_PUBLISHED,
+            'provider_post_url' => $accountData['post_url'],
         ]);
     });
 
@@ -59,9 +72,14 @@ test('posts identify social sites and use the configured application name', func
         ->assertSee('Broadwing Social')
         ->assertDontSee('Laravel Starter Kit')
         ->assertSee('Social sites')
-        ->assertSee('Facebook — Clayton House Marketplace: published')
-        ->assertSee('Instagram — claytonhousemarketplace: published')
-        ->assertSee('Google Business Profile — Clayton House: published');
+        ->assertSeeText('Facebook — Clayton House Marketplace: published')
+        ->assertSeeText('Instagram — claytonhousemarketplace: published')
+        ->assertSeeText('Google Business Profile — Clayton House: published')
+        ->assertSeeHtml('href="https://www.facebook.com/example-post"')
+        ->assertSeeHtml('href="https://www.instagram.com/p/example/"')
+        ->assertSeeHtml('href="https://local.google.com/place?id=example"')
+        ->assertSeeHtml('target="_blank"')
+        ->assertSeeHtml('rel="noopener noreferrer"');
 
     expect(substr_count($response->getContent(), 'Broadwing Social'))->toBeGreaterThanOrEqual(2);
 });

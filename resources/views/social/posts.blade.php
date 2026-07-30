@@ -27,7 +27,20 @@
                             <td class="px-4 py-3">
                                 <div class="space-y-1">
                                     @foreach ($post->targets as $target)
-                                        <div>{{ config("social.platform_names.{$target->provider}", str($target->provider)->headline()) }} — {{ $target->connectedAccount->display_name }}: {{ $target->publish_status }}{{ $target->delete_status ? " / delete {$target->delete_status}" : '' }}</div>
+                                        @php($platformName = config("social.platform_names.{$target->provider}", str($target->provider)->headline()))
+                                        <div>
+                                            @if ($target->provider_post_url)
+                                                <a
+                                                    href="{{ $target->provider_post_url }}"
+                                                    target="_blank"
+                                                    rel="noopener noreferrer"
+                                                    class="font-medium underline decoration-zinc-400 underline-offset-4 hover:decoration-current dark:decoration-zinc-500"
+                                                >{{ $platformName }}</a>
+                                            @else
+                                                {{ $platformName }}
+                                            @endif
+                                            — {{ $target->connectedAccount->display_name }}: {{ $target->publish_status }}{{ $target->delete_status ? " / delete {$target->delete_status}" : '' }}
+                                        </div>
                                     @endforeach
                                 </div>
                             </td>
