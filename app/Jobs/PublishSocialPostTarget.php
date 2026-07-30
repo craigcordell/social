@@ -3,11 +3,11 @@
 namespace App\Jobs;
 
 use App\Models\SocialPostTarget;
-use App\Services\Social\SocialPlatformManager;
+use App\Services\Social\SocialPostTargetPublisher;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 use Illuminate\Queue\Middleware\RateLimited;
-use Throwable;
+use RuntimeException;
 
 class PublishSocialPostTarget implements ShouldQueue
 {
@@ -40,48 +40,15 @@ class PublishSocialPostTarget implements ShouldQueue
             ->value('provider') ?? 'unknown';
     }
 
-    public function handle(SocialPlatformManager $platforms): void
+    public function handle(SocialPostTargetPublisher $publisher): void
     {
-        $target = SocialPostTarget::query()
-            ->with(['socialPost', 'connectedAccount'])
-            ->findOrFail($this->targetId);
-
-        if ($target->publish_status === SocialPostTarget::PUBLISH_STATUS_PUBLISHED) {
-            return;
-        }
-
-        $target->forceFill([
-            'publish_status' => SocialPostTarget::PUBLISH_STATUS_PUBLISHING,
-            'publish_attempts' => $target->publish_attempts + 1,
-            'last_error' => null,
-        ])->save();
+        $result = $publisher->publish($this->targetId);
+        $target = SocialPostTarget::query()->with('socialPost')->findOrFail($this->targetId);
 
         $target->socialPost->refreshAggregateStatus();
 
-        try {
-            $result = $platforms->adapter($target->provider)
-                ->publish($target->connectedAccount, $target->socialPost);
-
-            $target->forceFill([
-                'publish_status' => SocialPostTarget::PUBLISH_STATUS_PUBLISHED,
-                'provider_post_id' => $result['provider_post_id'],
-                'provider_media_id' => $result['provider_media_id'] ?? null,
-                'provider_post_url' => $result['provider_post_url'] ?? null,
-                'provider_response' => $result['provider_response'],
-                'published_at' => now(),
-                'last_error' => null,
-            ])->save();
-
-            $target->socialPost->refreshAggregateStatus();
-        } catch (Throwable $exception) {
-            $target->forceFill([
-                'publish_status' => SocialPostTarget::PUBLISH_STATUS_FAILED,
-                'last_error' => $exception->getMessage(),
-            ])->save();
-
-            $target->socialPost->refreshAggregateStatus();
-
-            throw $exception;
+        if (! $result['successful']) {
+            throw new RuntimeException($result['error'] ?? 'Social post publishing failed.');
         }
     }
 }

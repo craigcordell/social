@@ -9,10 +9,12 @@ use App\Models\PersonalAccessToken;
 use App\Models\SocialPost;
 use App\Models\SocialPostTarget;
 use App\Services\Social\SocialPlatformManager;
+use App\Services\Social\SocialPostTargetPublisher;
 use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Arr;
+use Illuminate\Support\Facades\Concurrency;
 use Illuminate\Validation\ValidationException;
 use Throwable;
 
@@ -45,8 +47,8 @@ class AyrshareCompatibilityController extends Controller
             'status' => SocialPost::STATUS_PUBLISHING,
         ]);
 
-        $postIds = [];
         $errors = [];
+        $targetIds = [];
 
         foreach ($requestedPlatforms as $platform) {
             if (! $this->platforms->supports($platform)) {
@@ -68,34 +70,33 @@ class AyrshareCompatibilityController extends Controller
                     'social_post_id' => $post->id,
                     'connected_account_id' => $account->id,
                     'provider' => $account->provider,
-                    'publish_status' => SocialPostTarget::PUBLISH_STATUS_PUBLISHING,
-                    'publish_attempts' => 1,
+                    'publish_status' => SocialPostTarget::PUBLISH_STATUS_QUEUED,
                 ]);
 
-                try {
-                    $result = $this->platforms->adapter($platform)->publish($account, $post);
-
-                    $target->forceFill([
-                        'publish_status' => SocialPostTarget::PUBLISH_STATUS_PUBLISHED,
-                        'provider_post_id' => $result['provider_post_id'],
-                        'provider_media_id' => $result['provider_media_id'] ?? null,
-                        'provider_post_url' => $result['provider_post_url'] ?? null,
-                        'provider_response' => $result['provider_response'],
-                        'published_at' => now(),
-                        'last_error' => null,
-                    ])->save();
-
-                    $postIds[] = $this->postIdResponse($target->fresh());
-                } catch (Throwable $exception) {
-                    $target->forceFill([
-                        'publish_status' => SocialPostTarget::PUBLISH_STATUS_FAILED,
-                        'last_error' => $exception->getMessage(),
-                    ])->save();
-
-                    $errors[] = $this->platformError($platform, 'post', $exception->getMessage());
-                }
+                $targetIds[] = $target->id;
             }
         }
+
+        $this->publishTargetsConcurrently($targetIds);
+
+        $targets = $post->targets()->orderBy('id')->get();
+        $postIds = $targets
+            ->filter(fn (SocialPostTarget $target): bool => $target->publish_status === SocialPostTarget::PUBLISH_STATUS_PUBLISHED)
+            ->map(fn (SocialPostTarget $target): array => $this->postIdResponse($target))
+            ->values()
+            ->all();
+        $errors = array_merge(
+            $errors,
+            $targets
+                ->filter(fn (SocialPostTarget $target): bool => $target->publish_status === SocialPostTarget::PUBLISH_STATUS_FAILED)
+                ->map(fn (SocialPostTarget $target): array => $this->platformError(
+                    $target->provider,
+                    'post',
+                    $target->last_error ?? 'Publishing failed.',
+                ))
+                ->values()
+                ->all(),
+        );
 
         $post->refreshAggregateStatus();
 
@@ -111,6 +112,41 @@ class AyrshareCompatibilityController extends Controller
             'errors' => $errors,
             'validate' => true,
         ]);
+    }
+
+    /**
+     * @param  array<int, int>  $targetIds
+     */
+    protected function publishTargetsConcurrently(array $targetIds): void
+    {
+        if ($targetIds === []) {
+            return;
+        }
+
+        $tasks = [];
+
+        foreach ($targetIds as $targetId) {
+            $tasks[(string) $targetId] = static fn (): array => app(SocialPostTargetPublisher::class)->publish($targetId);
+        }
+
+        try {
+            Concurrency::run($tasks, timeout: 60);
+        } catch (Throwable $exception) {
+            SocialPostTarget::query()
+                ->whereIn('id', $targetIds)
+                ->whereIn('publish_status', [
+                    SocialPostTarget::PUBLISH_STATUS_QUEUED,
+                    SocialPostTarget::PUBLISH_STATUS_PUBLISHING,
+                ])
+                ->get()
+                ->each(function (SocialPostTarget $target) use ($exception): void {
+                    $target->forceFill([
+                        'publish_status' => SocialPostTarget::PUBLISH_STATUS_FAILED,
+                        'publish_attempts' => max(1, $target->publish_attempts),
+                        'last_error' => $exception->getMessage(),
+                    ])->save();
+                });
+        }
     }
 
     public function destroy(Request $request): JsonResponse

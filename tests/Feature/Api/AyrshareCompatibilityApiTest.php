@@ -7,6 +7,7 @@ use App\Models\SocialPostTarget;
 use App\Models\User;
 use App\Services\Social\Adapters\SocialPlatformAdapter;
 use App\Services\Social\SocialPlatformManager;
+use Illuminate\Support\Facades\Concurrency;
 
 function bindAyrshareCompatibilityManager(SocialPlatformAdapter $adapter, array $supportedProviders = ['facebook']): void
 {
@@ -54,12 +55,22 @@ function ayrshareAccount(Owner $owner, string $provider = 'facebook'): Connected
     ]);
 }
 
-function ayrshareFakeAdapter(): SocialPlatformAdapter
+function ayrshareFakeAdapter(?Closure $publishCallback = null): SocialPlatformAdapter
 {
-    return new class implements SocialPlatformAdapter
+    return new class($publishCallback) implements SocialPlatformAdapter
     {
+        public function __construct(private readonly ?Closure $publishCallback) {}
+
         public function publish(ConnectedAccount $account, SocialPost $post): array
         {
+            if ($this->publishCallback) {
+                $result = ($this->publishCallback)($account, $post);
+
+                if (is_array($result)) {
+                    return $result;
+                }
+            }
+
             return [
                 'provider_post_id' => $account->provider_account_id.'_post-1',
                 'provider_media_id' => 'media-1',
@@ -159,6 +170,121 @@ it('publishes synchronously and returns an ayrshare-shaped success response', fu
 
     expect($target->publish_status)->toBe(SocialPostTarget::PUBLISH_STATUS_PUBLISHED)
         ->and($target->provider_post_url)->toBe('https://example.com/facebook/post-1');
+});
+
+it('publishes all connected platforms before returning one combined response', function (): void {
+    bindAyrshareCompatibilityManager(ayrshareFakeAdapter(), ['facebook', 'instagram', 'gmb']);
+
+    $owner = Owner::query()->create(['name' => 'Internal', 'type' => 'internal']);
+    ayrshareAccount($owner, 'facebook');
+    ayrshareAccount($owner, 'instagram');
+    ayrshareAccount($owner, 'gmb');
+
+    $this->withHeaders(ayrshareHeaders($owner))->postJson('/api/post', [
+        'post' => 'New item',
+        'platforms' => ['facebook', 'instagram', 'gmb'],
+        'mediaUrls' => ['https://example.com/item.jpg'],
+    ])
+        ->assertOk()
+        ->assertJsonPath('status', 'success')
+        ->assertJsonCount(3, 'postIds')
+        ->assertJsonPath('postIds.0.platform', 'facebook')
+        ->assertJsonPath('postIds.1.platform', 'instagram')
+        ->assertJsonPath('postIds.2.platform', 'gmb')
+        ->assertJsonPath('errors', []);
+
+    expect(SocialPostTarget::query()->pluck('publish_attempts')->all())->toBe([1, 1, 1])
+        ->and(SocialPostTarget::query()->where('publish_status', SocialPostTarget::PUBLISH_STATUS_PUBLISHED)->count())->toBe(3)
+        ->and(SocialPost::query()->firstOrFail()->status)->toBe(SocialPost::STATUS_PUBLISHED);
+});
+
+it('returns successful post ids when one connected platform fails', function (): void {
+    $adapter = ayrshareFakeAdapter(function (ConnectedAccount $account): ?array {
+        if ($account->provider === 'gmb') {
+            throw new RuntimeException('Google rejected the post.');
+        }
+
+        return null;
+    });
+    bindAyrshareCompatibilityManager($adapter, ['facebook', 'instagram', 'gmb']);
+
+    $owner = Owner::query()->create(['name' => 'Internal', 'type' => 'internal']);
+    ayrshareAccount($owner, 'facebook');
+    ayrshareAccount($owner, 'instagram');
+    ayrshareAccount($owner, 'gmb');
+
+    $this->withHeaders(ayrshareHeaders($owner))->postJson('/api/post', [
+        'post' => 'New item',
+        'platforms' => ['facebook', 'instagram', 'gmb'],
+        'mediaUrls' => ['https://example.com/item.jpg'],
+    ])
+        ->assertOk()
+        ->assertJsonPath('status', 'error')
+        ->assertJsonCount(2, 'postIds')
+        ->assertJsonPath('postIds.0.platform', 'facebook')
+        ->assertJsonPath('postIds.1.platform', 'instagram')
+        ->assertJsonCount(1, 'errors')
+        ->assertJsonPath('errors.0.platform', 'gmb')
+        ->assertJsonPath('errors.0.message', 'Google rejected the post.');
+
+    expect(SocialPostTarget::query()->where('publish_status', SocialPostTarget::PUBLISH_STATUS_PUBLISHED)->count())->toBe(2)
+        ->and(SocialPostTarget::query()->where('publish_status', SocialPostTarget::PUBLISH_STATUS_FAILED)->count())->toBe(1)
+        ->and(SocialPost::query()->firstOrFail()->status)->toBe(SocialPost::STATUS_PARTIAL_FAILED);
+});
+
+it('returns all provider errors when every connected platform fails', function (): void {
+    $adapter = ayrshareFakeAdapter(function (ConnectedAccount $account): never {
+        throw new RuntimeException(ucfirst($account->provider).' rejected the post.');
+    });
+    bindAyrshareCompatibilityManager($adapter, ['facebook', 'instagram', 'gmb']);
+
+    $owner = Owner::query()->create(['name' => 'Internal', 'type' => 'internal']);
+    ayrshareAccount($owner, 'facebook');
+    ayrshareAccount($owner, 'instagram');
+    ayrshareAccount($owner, 'gmb');
+
+    $this->withHeaders(ayrshareHeaders($owner))->postJson('/api/post', [
+        'post' => 'New item',
+        'platforms' => ['facebook', 'instagram', 'gmb'],
+        'mediaUrls' => ['https://example.com/item.jpg'],
+    ])
+        ->assertOk()
+        ->assertJsonPath('status', 'error')
+        ->assertJsonPath('postIds', [])
+        ->assertJsonCount(3, 'errors')
+        ->assertJsonPath('errors.0.platform', 'facebook')
+        ->assertJsonPath('errors.1.platform', 'instagram')
+        ->assertJsonPath('errors.2.platform', 'gmb');
+
+    expect(SocialPostTarget::query()->where('publish_status', SocialPostTarget::PUBLISH_STATUS_FAILED)->count())->toBe(3)
+        ->and(SocialPost::query()->firstOrFail()->status)->toBe(SocialPost::STATUS_FAILED);
+});
+
+it('records a concurrency process failure as a target failure', function (): void {
+    bindAyrshareCompatibilityManager(ayrshareFakeAdapter());
+    Concurrency::shouldReceive('run')
+        ->once()
+        ->andThrow(new RuntimeException('The concurrent process could not start.'));
+
+    $owner = Owner::query()->create(['name' => 'Internal', 'type' => 'internal']);
+    ayrshareAccount($owner);
+
+    $this->withHeaders(ayrshareHeaders($owner))->postJson('/api/post', [
+        'post' => 'New item',
+        'platforms' => ['facebook'],
+        'mediaUrls' => ['https://example.com/item.jpg'],
+    ])
+        ->assertOk()
+        ->assertJsonPath('status', 'error')
+        ->assertJsonPath('postIds', [])
+        ->assertJsonPath('errors.0.platform', 'facebook')
+        ->assertJsonPath('errors.0.message', 'The concurrent process could not start.');
+
+    $target = SocialPostTarget::query()->firstOrFail();
+
+    expect($target->publish_status)->toBe(SocialPostTarget::PUBLISH_STATUS_FAILED)
+        ->and($target->publish_attempts)->toBe(1)
+        ->and($target->socialPost->status)->toBe(SocialPost::STATUS_FAILED);
 });
 
 it('returns partial failures for unsupported platforms while preserving successful post ids', function (): void {

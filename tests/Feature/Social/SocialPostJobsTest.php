@@ -8,6 +8,7 @@ use App\Models\SocialPost;
 use App\Models\SocialPostTarget;
 use App\Services\Social\Adapters\SocialPlatformAdapter;
 use App\Services\Social\SocialPlatformManager;
+use App\Services\Social\SocialPostTargetPublisher;
 
 function bindSocialAdapter(SocialPlatformAdapter $adapter): void
 {
@@ -84,7 +85,7 @@ it('marks a target published when the adapter succeeds', function (): void {
 
     $target = socialTarget();
 
-    (new PublishSocialPostTarget($target->id))->handle(app(SocialPlatformManager::class));
+    (new PublishSocialPostTarget($target->id))->handle(app(SocialPostTargetPublisher::class));
 
     expect($target->fresh()->publish_status)->toBe(SocialPostTarget::PUBLISH_STATUS_PUBLISHED)
         ->and($target->fresh()->provider_post_id)->toBe('page-1_post-1')
@@ -122,7 +123,7 @@ it('records publish failure before rethrowing for queue retry', function (): voi
 
     $target = socialTarget();
 
-    expect(fn () => (new PublishSocialPostTarget($target->id))->handle(app(SocialPlatformManager::class)))
+    expect(fn () => (new PublishSocialPostTarget($target->id))->handle(app(SocialPostTargetPublisher::class)))
         ->toThrow(RuntimeException::class);
 
     expect($target->fresh()->publish_status)->toBe(SocialPostTarget::PUBLISH_STATUS_FAILED)
