@@ -1,6 +1,12 @@
 <?php
 
 return [
+    'platform_names' => [
+        'facebook' => 'Facebook',
+        'instagram' => 'Instagram',
+        'gmb' => 'Google Business Profile',
+    ],
+
     'providers' => [
         'facebook' => [
             'graph_version' => env('FACEBOOK_GRAPH_VERSION', 'v25.0'),

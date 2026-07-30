@@ -2,7 +2,7 @@
     <div class="flex h-full w-full flex-1 flex-col gap-6">
         <div>
             <flux:heading size="xl">Posts</flux:heading>
-            <flux:text>API-created posts and per-channel status.</flux:text>
+            <flux:text>API-created posts and status for each social site.</flux:text>
         </div>
 
         <div class="overflow-hidden rounded-lg border border-zinc-200 dark:border-zinc-700">
@@ -13,7 +13,7 @@
                         <th class="px-4 py-3 font-medium">Owner</th>
                         <th class="px-4 py-3 font-medium">Status</th>
                         <th class="px-4 py-3 font-medium">Caption</th>
-                        <th class="px-4 py-3 font-medium">Targets</th>
+                        <th class="px-4 py-3 font-medium">Social sites</th>
                         <th class="px-4 py-3 font-medium">Scheduled</th>
                     </tr>
                 </thead>
@@ -27,7 +27,7 @@
                             <td class="px-4 py-3">
                                 <div class="space-y-1">
                                     @foreach ($post->targets as $target)
-                                        <div>{{ $target->connectedAccount->display_name }}: {{ $target->publish_status }}{{ $target->delete_status ? " / delete {$target->delete_status}" : '' }}</div>
+                                        <div>{{ config("social.platform_names.{$target->provider}", str($target->provider)->headline()) }} — {{ $target->connectedAccount->display_name }}: {{ $target->publish_status }}{{ $target->delete_status ? " / delete {$target->delete_status}" : '' }}</div>
                                     @endforeach
                                 </div>
                             </td>
