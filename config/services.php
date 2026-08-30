@@ -50,6 +50,23 @@ return [
         'scopes' => array_filter(array_map('trim', explode(',', env('INSTAGRAM_SCOPES', 'instagram_business_basic,instagram_business_content_publish,instagram_business_manage_insights,instagram_business_manage_comments')))),
     ],
 
+    'meta_marketing' => [
+        'base_url' => env('META_MARKETING_BASE_URL', 'https://graph.facebook.com'),
+        'graph_version' => env('META_MARKETING_GRAPH_VERSION', 'v25.0'),
+        'access_token' => env('META_MARKETING_ACCESS_TOKEN'),
+        'app_secret' => env('FACEBOOK_CLIENT_SECRET'),
+        'business_id' => env('META_MARKETING_BUSINESS_ID'),
+        'ad_account_id' => env('META_MARKETING_AD_ACCOUNT_ID'),
+        'page_id' => env('META_MARKETING_PAGE_ID'),
+        'instagram_account_id' => env('META_MARKETING_INSTAGRAM_ACCOUNT_ID'),
+        'owner_external_id' => env('META_MARKETING_OWNER_EXTERNAL_ID', 'default'),
+        'currency' => env('META_MARKETING_CURRENCY', 'USD'),
+        'account_daily_limit_minor' => (int) env('META_MARKETING_ACCOUNT_DAILY_LIMIT_MINOR', 0),
+        'template_ad_set_id' => env('META_MARKETING_TEMPLATE_AD_SET_ID'),
+        'timeout' => (int) env('META_MARKETING_TIMEOUT', 15),
+        'connect_timeout' => (int) env('META_MARKETING_CONNECT_TIMEOUT', 5),
+    ],
+
     'google_business' => [
         'client_id' => env('GOOGLE_BUSINESS_CLIENT_ID'),
         'client_secret' => env('GOOGLE_BUSINESS_CLIENT_SECRET'),

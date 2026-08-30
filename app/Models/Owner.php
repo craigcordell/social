@@ -33,4 +33,9 @@ class Owner extends Model
     {
         return $this->hasMany(SocialPost::class);
     }
+
+    public function metaAdOperations(): HasMany
+    {
+        return $this->hasMany(MetaAdOperation::class);
+    }
 }

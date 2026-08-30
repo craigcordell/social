@@ -20,6 +20,20 @@
                     <flux:select.option value="{{ $owner->id }}">{{ $owner->name }}</flux:select.option>
                 @endforeach
             </flux:select>
+            <flux:field class="min-w-72">
+                <flux:label>Permissions</flux:label>
+                <div class="grid gap-2">
+                    @foreach ($abilityOptions as $ability => $label)
+                        <flux:checkbox
+                            name="abilities[]"
+                            :value="$ability"
+                            :label="$label"
+                            :checked="in_array($ability, old('abilities', []), true)"
+                        />
+                    @endforeach
+                </div>
+                <flux:error name="abilities" />
+            </flux:field>
             <flux:button type="submit" variant="primary" icon="key">Create token</flux:button>
         </form>
 
@@ -29,6 +43,7 @@
                     <tr>
                         <th class="px-4 py-3 font-medium">Name</th>
                         <th class="px-4 py-3 font-medium">Owner</th>
+                        <th class="px-4 py-3 font-medium">Permissions</th>
                         <th class="px-4 py-3 font-medium">Last used</th>
                         <th class="px-4 py-3 font-medium">Created</th>
                         <th class="px-4 py-3 font-medium"></th>
@@ -39,6 +54,7 @@
                         <tr>
                             <td class="px-4 py-3">{{ $token->name }}</td>
                             <td class="px-4 py-3">{{ $token->owner?->name ?? 'Unassigned' }}</td>
+                            <td class="px-4 py-3">{{ collect($token->abilities)->join(', ') }}</td>
                             <td class="px-4 py-3">{{ $token->last_used_at?->diffForHumans() ?? 'Never' }}</td>
                             <td class="px-4 py-3">{{ $token->created_at->toDayDateTimeString() }}</td>
                             <td class="px-4 py-3 text-right">
@@ -51,7 +67,7 @@
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="5" class="px-4 py-6 text-center text-zinc-500">No API tokens yet.</td>
+                            <td colspan="6" class="px-4 py-6 text-center text-zinc-500">No API tokens yet.</td>
                         </tr>
                     @endforelse
                 </tbody>
