@@ -34,6 +34,7 @@ Route::middleware('auth:sanctum')->group(function (): void {
 
         Route::middleware(['abilities:ads:manage', 'throttle:meta-mutations'])->group(function (): void {
             Route::post('boosts', [MetaMarketingMutationController::class, 'createBoost']);
+            Route::post('ads/pause-by-posts', [MetaMarketingMutationController::class, 'pauseAdsByPosts']);
             Route::patch('campaigns/{campaignId}/budget', [MetaMarketingMutationController::class, 'increaseCampaignBudget'])
                 ->whereNumber('campaignId');
             Route::patch('ads/{adId}/status', [MetaMarketingMutationController::class, 'updateAdStatus'])->whereNumber('adId');

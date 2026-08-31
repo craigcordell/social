@@ -5,11 +5,13 @@ namespace App\Http\Controllers\Api\Meta;
 use App\Actions\MetaMarketing\CreateMetaBoost;
 use App\Actions\MetaMarketing\IncreaseMetaAdBudget;
 use App\Actions\MetaMarketing\IncreaseMetaCampaignBudget;
+use App\Actions\MetaMarketing\PauseMetaAdsByPosts;
 use App\Actions\MetaMarketing\UpdateMetaAdStatus;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Api\Meta\CreateBoostRequest;
 use App\Http\Requests\Api\Meta\IncreaseAdBudgetRequest;
 use App\Http\Requests\Api\Meta\IncreaseCampaignBudgetRequest;
+use App\Http\Requests\Api\Meta\PauseAdsByPostsRequest;
 use App\Http\Requests\Api\Meta\UpdateAdStatusRequest;
 use App\Services\Api\CurrentApiOwner;
 use Illuminate\Http\JsonResponse;
@@ -59,6 +61,21 @@ final class MetaMarketingMutationController extends Controller
             'data' => $this->updateAdStatus->execute(
                 $this->currentOwner->resolve($request),
                 $adId,
+                $data,
+            ),
+        ]);
+    }
+
+    public function pauseAdsByPosts(
+        PauseAdsByPostsRequest $request,
+        PauseMetaAdsByPosts $pauseAdsByPosts,
+    ): JsonResponse {
+        /** @var array{idempotency_key: string, posts: list<array{client_reference?: ?string, platform: string, post_url: string}>} $data */
+        $data = $request->validated();
+
+        return response()->json([
+            'data' => $pauseAdsByPosts->execute(
+                $this->currentOwner->resolve($request),
                 $data,
             ),
         ]);

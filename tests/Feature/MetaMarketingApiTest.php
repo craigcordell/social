@@ -994,6 +994,189 @@ it('pauses an exact ad once and replays the audited result idempotently', functi
     ]);
 });
 
+it('pauses every unique ad related to facebook and instagram post urls', function (): void {
+    $facebookAdId = '120252515140480216';
+    $instagramAdId = '120252515140480217';
+    $adReads = [
+        $facebookAdId => 0,
+        $instagramAdId => 0,
+    ];
+    $ads = [[
+        'id' => $facebookAdId,
+        'account_id' => '58438981',
+        'campaign_id' => '120252515139420216',
+        'adset_id' => '120252515139640216',
+        'status' => 'ACTIVE',
+        'effective_status' => 'ACTIVE',
+        'creative' => [
+            'effective_object_story_id' => '358179240887925_123456789',
+        ],
+    ], [
+        'id' => $instagramAdId,
+        'account_id' => '58438981',
+        'campaign_id' => '120252515139420217',
+        'adset_id' => '120252515139640217',
+        'status' => 'ACTIVE',
+        'effective_status' => 'ACTIVE',
+        'creative' => [
+            'source_instagram_media_id' => '18336011737284162',
+            'instagram_permalink_url' => 'https://www.instagram.com/p/DifferentAdPermalink/',
+        ],
+    ]];
+
+    Http::fake(function (Request $request) use (&$adReads, $ads, $facebookAdId, $instagramAdId): mixed {
+        $path = parse_url($request->url(), PHP_URL_PATH);
+
+        if ($request->method() === 'GET' && $path === '/v25.0/act_58438981/ads') {
+            return Http::response(['data' => $ads]);
+        }
+
+        if ($request->method() === 'GET' && $path === '/v25.0/' && array_key_exists('ids', $request->data())) {
+            return Http::response([
+                '18336011737284162' => [
+                    'id' => '18336011737284162',
+                    'shortcode' => 'DcjHi6rDQEP',
+                    'permalink' => 'https://www.instagram.com/p/DcjHi6rDQEP/',
+                    'boost_ads_list' => [
+                        'data' => [
+                            ['ad_id' => $instagramAdId, 'ad_status' => 'active'],
+                        ],
+                    ],
+                ],
+            ]);
+        }
+
+        foreach ([$facebookAdId, $instagramAdId] as $adId) {
+            if ($request->method() === 'GET' && $path === '/v25.0/'.$adId) {
+                $adReads[$adId]++;
+                $ad = collect($ads)->firstWhere('id', $adId);
+
+                return Http::response([
+                    ...$ad,
+                    'status' => $adReads[$adId] === 1 ? 'ACTIVE' : 'PAUSED',
+                    'effective_status' => $adReads[$adId] === 1 ? 'ACTIVE' : 'PAUSED',
+                ]);
+            }
+
+            if ($request->method() === 'POST' && $path === '/v25.0/'.$adId) {
+                return Http::response(['success' => true]);
+            }
+        }
+
+        return Http::response([], 404);
+    });
+
+    $owner = metaInternalOwner();
+    $token = metaApiTokenFor($owner, ['ads:manage']);
+    $payload = [
+        'posts' => [[
+            'client_reference' => 'pos2026:post:41:facebook',
+            'platform' => 'facebook',
+            'post_url' => 'https://facebook.com/358179240887925_123456789',
+        ], [
+            'client_reference' => 'pos2026:post:41:instagram',
+            'platform' => 'instagram',
+            'post_url' => 'https://www.instagram.com/p/DcjHi6rDQEP/',
+        ], [
+            'client_reference' => 'pos2026:post:42:instagram',
+            'platform' => 'instagram',
+            'post_url' => 'https://www.instagram.com/p/DcjHi6rDQEP/',
+        ]],
+    ];
+    $headers = ['Idempotency-Key' => 'sold-item-1234-posts'];
+
+    $this->withToken($token)
+        ->postJson('/api/v1/meta/ads/pause-by-posts', $payload, $headers)
+        ->assertOk()
+        ->assertJsonPath('data.complete', true)
+        ->assertJsonPath('data.summary.submitted_posts', 3)
+        ->assertJsonPath('data.summary.matched_posts', 3)
+        ->assertJsonPath('data.summary.matched_ads', 2)
+        ->assertJsonPath('data.summary.successful_ads', 2)
+        ->assertJsonPath('data.posts.0.matched_ad_ids.0', $facebookAdId)
+        ->assertJsonPath('data.posts.1.matched_ad_ids.0', $instagramAdId)
+        ->assertJsonPath('data.posts.2.matched_ad_ids.0', $instagramAdId)
+        ->assertJsonPath('data.ads.0.idempotent_replay', false)
+        ->assertJsonPath('data.ads.1.idempotent_replay', false);
+
+    $this->withToken($token)
+        ->postJson('/api/v1/meta/ads/pause-by-posts', $payload, $headers)
+        ->assertOk()
+        ->assertJsonPath('data.complete', true)
+        ->assertJsonPath('data.summary.matched_ads', 2)
+        ->assertJsonPath('data.ads.0.idempotent_replay', true)
+        ->assertJsonPath('data.ads.1.idempotent_replay', true);
+
+    expect(Http::recorded(fn (Request $request): bool => $request->method() === 'POST'
+        && in_array(parse_url($request->url(), PHP_URL_PATH), [
+            '/v25.0/'.$facebookAdId,
+            '/v25.0/'.$instagramAdId,
+        ], true)))->toHaveCount(2);
+
+    $this->assertDatabaseCount('meta_ad_operations', 2);
+    $this->assertDatabaseHas('meta_ad_operations', [
+        'type' => 'status_update',
+        'status' => 'succeeded',
+        'meta_ad_id' => $facebookAdId,
+    ]);
+    $this->assertDatabaseHas('meta_ad_operations', [
+        'type' => 'status_update',
+        'status' => 'succeeded',
+        'meta_ad_id' => $instagramAdId,
+    ]);
+});
+
+it('reports an unboosted post without treating it as a pause failure', function (): void {
+    Http::fake([
+        'graph.facebook.com/v25.0/act_58438981/ads*' => Http::response([
+            'data' => [[
+                'id' => '120252515140480216',
+                'creative' => [
+                    'effective_object_story_id' => '358179240887925_999999999',
+                ],
+            ]],
+        ]),
+    ]);
+
+    $owner = metaInternalOwner();
+
+    $this->withToken(metaApiTokenFor($owner, ['ads:manage']))
+        ->postJson('/api/v1/meta/ads/pause-by-posts', [
+            'posts' => [[
+                'platform' => 'facebook',
+                'post_url' => 'https://facebook.com/358179240887925_123456789',
+            ]],
+        ], ['Idempotency-Key' => 'unboosted-post-1'])
+        ->assertOk()
+        ->assertJsonPath('data.complete', true)
+        ->assertJsonPath('data.summary.matched_posts', 0)
+        ->assertJsonPath('data.summary.unmatched_posts', 1)
+        ->assertJsonPath('data.summary.matched_ads', 0)
+        ->assertJsonPath('data.posts.0.matched_ad_ids', []);
+
+    Http::assertSentCount(1);
+    $this->assertDatabaseCount('meta_ad_operations', 0);
+});
+
+it('validates post platforms urls and the batch idempotency key before resolving ads', function (): void {
+    $owner = metaInternalOwner();
+
+    $this->withToken(metaApiTokenFor($owner, ['ads:manage']))
+        ->postJson('/api/v1/meta/ads/pause-by-posts', [
+            'posts' => [[
+                'platform' => 'facebook',
+                'post_url' => 'https://www.instagram.com/p/DcjHi6rDQEP/',
+            ]],
+        ])
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors([
+            'idempotency_key',
+            'posts.0.post_url',
+        ]);
+
+    Http::assertNothingSent();
+});
+
 it('warns when resuming a paused ad may exceed the account daily limit', function (): void {
     $adReads = 0;
     $campaigns = [[
